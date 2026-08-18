@@ -14,9 +14,10 @@
     <string name="mode_bubble">Bubble only</string>
     <string name="mode_bubble_detail">The bubble follows your finger and the cursor moves with it.
         Let go and the bubble slides back to its spot, while the cursor stays where you left it, so
-        you can cross the screen in several strokes. Triple tap the bubble to switch it off - it
-        fades and stops responding until you triple tap it again. It also lifts itself above the
-        keyboard while one is open.</string>
+        you can cross the screen in several strokes. Triple tap the bubble to switch it off: it
+        fades and stops taking touches altogether, so edge swipes and everything behind it work
+        normally. Press volume up and down together to bring it back, or to switch it off without
+        reaching for it. It also lifts itself above the keyboard while one is open.</string>
     <string name="action_place_bubble">Choose where the bubble sits</string>
 
     <string name="blocker_heading">Touch blocker</string>
@@ -29,6 +30,7 @@
     <string name="pointer_heading">Pointer</string>
     <string name="setting_sensitivity">Cursor speed</string>
     <string name="setting_cursor_size">Cursor size</string>
+    <string name="setting_cursor_hide">Hide the cursor after</string>
     <string name="setting_cursor_opacity">Cursor opacity</string>
     <string name="setting_control_opacity">Trackpad / bubble opacity</string>
 
@@ -49,11 +51,14 @@
     <string name="value_percent">Top %1$d%% of the screen</string>
     <string name="value_multiplier">%1$.1f×</string>
     <string name="value_percentage">%1$d%%</string>
+    <string name="value_seconds">%1$d s</string>
+    <string name="value_never">Never</string>
 
     <string name="usage_help">Slide to move the cursor — lifting your finger does not tap.\nTap
         without sliding to click where the cursor is.\nDouble tap and release to long press.\nDouble
         tap and, without lifting, slide to drag: slide straight away to scroll, or rest a moment
-        first to pick something up.\nTriple tap the bubble to switch it off and on.</string>
+        first to pick something up. The page follows your finger as you drag.\nTriple tap the bubble
+        to switch it off; volume up + down together switches it off or back on.</string>
 
     <string name="blocker_watermark">TOUCH BLOCKED</string>
 
@@ -69,6 +74,8 @@
     <string name="pad_hint">Slide to move · tap to click · double tap to hold</string>
 
     <string name="hint_place_bubble">Drag the bubble where you want it and let go.</string>
+    <string name="hint_control_off">Bubble off. Volume up + down together brings it back.</string>
+    <string name="hint_control_on">Bubble on.</string>
     <string name="hint_bubble_placed">The bubble will come back here from now on.</string>
 
     <string name="error_overlay_permission">Mouse needs permission to draw over other apps.</string>
@@ -84,6 +91,8 @@
 
     <string name="accessibility_service_label">Mouse</string>
     <string name="accessibility_service_description">Lets Mouse tap, long press and drag where you
-        put the on-screen cursor, and use Back, Home and Recents from the floating trackpad. Mouse
-        does not read screen content.</string>
+        put the on-screen cursor, and use Back, Home and Recents from the floating trackpad. It
+        also looks at where the keyboard is, so the trackpad can move out of its way, and listens
+        for volume up and down together as a shortcut. Mouse does not read the text or contents of
+        your screen.</string>
 </resources>

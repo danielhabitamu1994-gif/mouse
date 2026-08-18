@@ -12,7 +12,6 @@ import android.content.pm.ServiceInfo
 import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.graphics.Point
-import android.graphics.Rect
 import android.graphics.PointF
 import android.os.Build
 import android.os.Handler
@@ -22,8 +21,6 @@ import android.provider.Settings
 import android.util.Log
 import android.view.Gravity
 import android.view.View
-import android.view.ViewTreeObserver
-import android.view.WindowInsets
 import android.view.WindowManager
 import android.view.animation.DecelerateInterpolator
 import android.widget.Toast
@@ -67,10 +64,10 @@ class OverlayService : Service(), MouseController {
     private var placingBubble = false
     private var springBack: ValueAnimator? = null
     private var lastMode = PadMode.TRACKPAD
-    private var controlActive = true
-
-    private var probeView: View? = null
     private var keyboardHeight = 0
+    private var controlActive = true
+    private var streamingDrag = false
+    private var pendingStreamStart: Runnable? = null
 
     private val restoreBlocking = Runnable { restoreTouchBlocking() }
 
@@ -78,6 +75,8 @@ class OverlayService : Service(), MouseController {
         super.onCreate()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         createNotificationChannel()
+        MouseAccessibilityService.keyboardListener = { top -> onKeyboardTopChanged(top) }
+        MouseAccessibilityService.shortcutListener = { setControlActive(!controlActive) }
         isRunning = true
         broadcastState()
     }
@@ -119,7 +118,7 @@ class OverlayService : Service(), MouseController {
             refreshScreenMetrics()
             applyBlockerState()
             moveCursorBy(0f, 0f)
-            measureKeyboard()
+            MouseAccessibilityService.instance?.let { onKeyboardTopChanged(it.keyboardTop()) }
             clampPad()
         }, ROTATION_SETTLE_MS)
     }
@@ -127,6 +126,9 @@ class OverlayService : Service(), MouseController {
     override fun onDestroy() {
         isRunning = false
         broadcastState()
+        MouseAccessibilityService.keyboardListener = null
+        MouseAccessibilityService.shortcutListener = null
+        MouseAccessibilityService.instance?.cancelDragStream()
         springBack?.cancel()
         handler.removeCallbacksAndMessages(null)
         removeOverlays()
@@ -151,12 +153,19 @@ class OverlayService : Service(), MouseController {
         addBlocker()
         addCursor()
         addPad()
-        addKeyboardProbe()
 
         overlaysAdded = true
         lastMode = settings.padMode
+        MouseAccessibilityService.instance?.let {
+            keyboardHeight = if (it.keyboardTop() == MouseAccessibilityService.NO_KEYBOARD) {
+                0
+            } else {
+                (screenHeight - it.keyboardTop()).coerceAtLeast(0)
+            }
+        }
         applySettings()
         positionPadForMode()
+        wakeCursor()
         return true
     }
 
@@ -203,11 +212,6 @@ class OverlayService : Service(), MouseController {
     }
 
     private fun removeOverlays() {
-        probeView?.let {
-            it.viewTreeObserver.removeOnGlobalLayoutListener(keyboardWatcher)
-            safeRemove(it)
-        }
-        probeView = null
         trackpad?.release()
         trackpad?.root?.let { safeRemove(it) }
         cursorView?.let { safeRemove(it) }
@@ -219,56 +223,6 @@ class OverlayService : Service(), MouseController {
         cursorParams = null
         blockerParams = null
         overlaysAdded = false
-    }
-
-    /**
-     * A one pixel window that exists only to be measured. Unlike the others it is laid out inside
-     * the system's insets, so when the keyboard opens this window shrinks, which is how the
-     * service finds out the keyboard is there and how tall it is.
-     */
-    private fun addKeyboardProbe() {
-        val view = View(this)
-        val params = WindowManager.LayoutParams(
-            1,
-            WindowManager.LayoutParams.MATCH_PARENT,
-            overlayType,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
-            PixelFormat.TRANSPARENT
-        ).apply {
-            gravity = Gravity.TOP or Gravity.START
-            // Deprecated for activities, which have insets APIs instead, but still the only way
-            // to ask the window manager to resize a raw window around the keyboard.
-            @Suppress("DEPRECATION")
-            softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
-        }
-        probeView = view
-        windowManager.addView(view, params)
-        view.viewTreeObserver.addOnGlobalLayoutListener(keyboardWatcher)
-    }
-
-    private val keyboardWatcher = ViewTreeObserver.OnGlobalLayoutListener { measureKeyboard() }
-
-    private fun measureKeyboard() {
-        val view = probeView ?: return
-
-        var height = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            view.rootWindowInsets?.getInsets(WindowInsets.Type.ime())?.bottom ?: 0
-        } else {
-            0
-        }
-        if (height == 0) {
-            // Older releases, and any device that does not report the insets to an overlay: work
-            // it out from how much of the display the window can still see.
-            val visible = Rect()
-            view.getWindowVisibleDisplayFrame(visible)
-            val covered = screenHeight - visible.bottom
-            if (covered > screenHeight * KEYBOARD_MIN_FRACTION) height = covered
-        }
-
-        if (height == keyboardHeight) return
-        keyboardHeight = height
-        springPadHome()
     }
 
     private fun overlayParams(width: Int, height: Int, touchable: Boolean): WindowManager.LayoutParams {
@@ -289,6 +243,17 @@ class OverlayService : Service(), MouseController {
             @Suppress("DEPRECATION")
             WindowManager.LayoutParams.TYPE_PHONE
         }
+
+    private fun onKeyboardTopChanged(top: Int) {
+        val height = if (top == MouseAccessibilityService.NO_KEYBOARD) {
+            0
+        } else {
+            (screenHeight - top).coerceAtLeast(0)
+        }
+        if (height == keyboardHeight) return
+        keyboardHeight = height
+        springPadHome()
+    }
 
     private fun applySettings() {
         applyBlockerState()
@@ -322,9 +287,17 @@ class OverlayService : Service(), MouseController {
         }
     }
 
-    override fun onControlActiveChanged(active: Boolean) {
+    override fun isControlActive(): Boolean = controlActive
+
+    override fun setControlActive(active: Boolean) {
+        if (controlActive == active) return
         controlActive = active
+        // Off means untouchable, so whatever is behind the bubble - including the system's edge
+        // gestures - works normally. That is also why only the volume shortcut can switch it back
+        // on: with the window deaf to touches, nothing on screen could hear a triple tap.
+        padParams?.let { it.flags = withTouchable(it.flags, active) }
         applyOpacity()
+        toast(getString(if (active) R.string.hint_control_on else R.string.hint_control_off))
     }
 
     private fun applyCursorSize() {
@@ -383,7 +356,7 @@ class OverlayService : Service(), MouseController {
         blockerSuspended = false
         applyBlockerState()
 
-        padParams?.let { it.flags = withTouchable(it.flags, true) }
+        padParams?.let { it.flags = withTouchable(it.flags, controlActive) }
         applyOpacity()
     }
 
@@ -584,6 +557,19 @@ class OverlayService : Service(), MouseController {
         cursorX = (cursorX + dx).coerceIn(0f, (screenWidth - 2).coerceAtLeast(0).toFloat())
         cursorY = (cursorY + dy).coerceIn(0f, (screenHeight - 2).coerceAtLeast(0).toFloat())
         updateCursorWindow()
+        wakeCursor()
+        // A drag in progress follows the cursor, so the app scrolls while the finger still moves.
+        if (streamingDrag) MouseAccessibilityService.instance?.moveDragStream(cursorX, cursorY)
+    }
+
+    private val hideCursor = Runnable { cursorView?.visibility = View.INVISIBLE }
+
+    override fun wakeCursor() {
+        val view = cursorView ?: return
+        view.visibility = View.VISIBLE
+        handler.removeCallbacks(hideCursor)
+        val seconds = settings.cursorHideSeconds
+        if (seconds > 0) handler.postDelayed(hideCursor, seconds * 1_000L)
     }
 
     private fun updateCursorWindow() {
@@ -615,6 +601,26 @@ class OverlayService : Service(), MouseController {
         dragAnchor = PointF(cursorX, cursorY)
         dragHolds = withHold
         cursorView?.gestureInFlight = true
+        wakeCursor()
+
+        val service = MouseAccessibilityService.instance ?: return
+        if (!service.canStreamDrag()) return
+
+        val x = cursorX
+        val y = cursorY
+        handler.removeCallbacks(restoreBlocking)
+        openPathFor(x, y, x, y)
+        // Held back a beat like every other injection, so the cleared overlays have reached the
+        // window manager before the press lands.
+        val start = Runnable {
+            pendingStreamStart = null
+            streamingDrag = service.startDragStream(x, y, withHold)
+        }
+        pendingStreamStart = start
+        handler.postDelayed(start, INJECTION_SETTLE_MS)
+        // Which window a gesture belongs to is settled when it starts, so the overlays can come
+        // back as soon as the press has landed and the rest of the drag still goes to the app.
+        handler.postDelayed(restoreBlocking, INJECTION_SETTLE_MS + STREAM_OPEN_MS)
     }
 
     override fun endDrag() {
@@ -622,6 +628,21 @@ class OverlayService : Service(), MouseController {
         dragAnchor = null
         val x = cursorX
         val y = cursorY
+
+        // A flick shorter than the settle delay ends before the stream ever starts.
+        pendingStreamStart?.let {
+            handler.removeCallbacks(it)
+            pendingStreamStart = null
+        }
+
+        if (streamingDrag) {
+            streamingDrag = false
+            cursorView?.gestureInFlight = false
+            MouseAccessibilityService.instance?.endDragStream(x, y)
+            return
+        }
+
+        // Nothing streaming: send the whole drag now that the finger is up.
         withInjectionPassthrough(anchor.x, anchor.y, x, y) { service, done ->
             service.drag(anchor.x, anchor.y, x, y, dragHolds) { delivered ->
                 onGestureFinished(delivered, done)
@@ -795,10 +816,11 @@ class OverlayService : Service(), MouseController {
         /** Long enough for the cleared flags and opacities to reach the window manager. */
         private const val INJECTION_SETTLE_MS = 80L
         private const val PASSTHROUGH_TAIL_MS = 60L
+
+        /** How long the overlays stay out of the way once a live drag has pressed down. */
+        private const val STREAM_OPEN_MS = 200L
         private const val ROTATION_SETTLE_MS = 300L
 
-        /** Anything shorter than this much of the screen is a navigation bar, not a keyboard. */
-        private const val KEYBOARD_MIN_FRACTION = 0.15f
         private const val SPRING_BACK_MS = 180L
 
         fun start(context: Context) = send(context, ACTION_START)

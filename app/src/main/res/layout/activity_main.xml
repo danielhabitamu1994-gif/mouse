@@ -209,6 +209,24 @@
 
                 <TextView
                     style="@style/SettingLabel"
+                    android:text="@string/setting_cursor_hide" />
+
+                <TextView
+                    android:id="@+id/value_cursor_hide"
+                    style="@style/SettingValue" />
+            </LinearLayout>
+
+            <SeekBar
+                android:id="@+id/seek_cursor_hide"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
+            <LinearLayout
+                style="@style/SettingRow"
+                android:layout_marginTop="12dp">
+
+                <TextView
+                    style="@style/SettingLabel"
                     android:text="@string/setting_cursor_opacity" />
 
                 <TextView

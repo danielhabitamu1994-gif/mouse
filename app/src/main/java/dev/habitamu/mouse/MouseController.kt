@@ -35,8 +35,16 @@ interface MouseController {
     /** The panel is about to change size; reposition it so its anchored corner stays put. */
     fun onPadResized()
 
-    /** The bubble was switched off or back on with a triple tap. */
-    fun onControlActiveChanged(active: Boolean)
+    /**
+     * A switched-off control fades and stops taking touches at all, so whatever is behind it can
+     * be used - which is why it takes the volume shortcut, not a tap, to bring it back.
+     */
+    fun isControlActive(): Boolean
+
+    fun setControlActive(active: Boolean)
+
+    /** The cursor hides itself after a while; anything the user does brings it back. */
+    fun wakeCursor()
 
     fun toggleBlocker()
 

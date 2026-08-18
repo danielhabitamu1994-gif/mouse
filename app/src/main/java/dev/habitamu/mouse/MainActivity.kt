@@ -109,6 +109,17 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
+        binding.seekCursorHide.max = Prefs.MAX_CURSOR_HIDE_SECONDS
+        binding.seekCursorHide.setOnSeekBarChangeListener(object : SimpleSeekBarListener() {
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                binding.valueCursorHide.text = hideDelay(progress)
+                if (fromUser) {
+                    prefs.cursorHideSeconds = progress
+                    pushSettings()
+                }
+            }
+        })
+
         binding.seekCursorOpacity.max = SLIDER_STEPS
         binding.seekCursorOpacity.setOnSeekBarChangeListener(object : SimpleSeekBarListener() {
             override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
@@ -209,6 +220,7 @@ class MainActivity : AppCompatActivity() {
             progressOf(prefs.sensitivity, Prefs.MIN_SENSITIVITY, Prefs.MAX_SENSITIVITY)
         binding.seekCursorSize.progress =
             progressOf(prefs.cursorScale, Prefs.MIN_CURSOR_SCALE, Prefs.MAX_CURSOR_SCALE)
+        binding.seekCursorHide.progress = prefs.cursorHideSeconds
         binding.seekCursorOpacity.progress =
             progressOf(prefs.cursorOpacity, Prefs.MIN_OPACITY, Prefs.MAX_OPACITY)
         binding.seekControlOpacity.progress =
@@ -218,6 +230,7 @@ class MainActivity : AppCompatActivity() {
         binding.valueCoverage.text = getString(R.string.value_percent, coveragePercent)
         binding.valueSensitivity.text = getString(R.string.value_multiplier, prefs.sensitivity)
         binding.valueCursorSize.text = percentage(prefs.cursorScale)
+        binding.valueCursorHide.text = hideDelay(prefs.cursorHideSeconds)
         binding.valueCursorOpacity.text = percentage(prefs.cursorOpacity)
         binding.valueControlOpacity.text = percentage(prefs.controlOpacity)
     }
@@ -240,6 +253,9 @@ class MainActivity : AppCompatActivity() {
         )
         binding.btnPlaceBubble.isEnabled = running && prefs.padMode == PadMode.BUBBLE
     }
+
+    private fun hideDelay(seconds: Int): String =
+        if (seconds == 0) getString(R.string.value_never) else getString(R.string.value_seconds, seconds)
 
     private fun percentage(fraction: Float): String =
         getString(R.string.value_percentage, (fraction * 100).roundToInt())

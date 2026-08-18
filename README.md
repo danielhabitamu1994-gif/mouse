@@ -14,7 +14,7 @@ Three overlay windows and one accessibility service:
 | Cursor | `CursorView.kt` | Small untouchable window drawn at the virtual pointer. Its tip is the hot spot that gets clicked. |
 | Control | `TrackpadPanel.kt` + `res/layout/overlay_trackpad.xml` | The floating control, in either shape: a full panel, or a bubble on its own. |
 | Gestures | `PointerGestureDetector.kt` | Turns finger movement into tap, hold, drag and cursor movement. |
-| Input | `MouseAccessibilityService.kt` | `dispatchGesture` for tap / long press / drag, `performGlobalAction` for Back, Home and Recents. |
+| Input | `MouseAccessibilityService.kt` | `dispatchGesture` for tap / long press / drag, `performGlobalAction` for Back, Home and Recents, the keyboard's position, and the volume shortcut. |
 
 `OverlayService.kt` is the foreground service that owns the windows, holds the cursor position and
 wires the control to the accessibility service through the `MouseController` interface.
@@ -29,9 +29,11 @@ wires the control to the accessibility service through the `MouseController` int
   it, so the screen can be crossed in several strokes. The home spot is chosen from the settings
   screen: press "Choose where the bubble sits", drag the bubble, and let go.
 
-Either shape lifts itself above the keyboard while one is open and settles back afterwards. A one
-pixel probe window, laid out inside the system insets rather than over them, is what notices: the
-keyboard shrinks it, and its height is the difference.
+Either shape lifts itself above the keyboard while one is open and settles back afterwards. The
+keyboard's position comes from the accessibility service's window list: an overlay window is not
+told about the keyboard's insets on most devices, which is why the service declares
+`canRetrieveWindowContent` and `flagRetrieveInteractiveWindows`. It reads window types and bounds
+and nothing else - no screen text is ever fetched.
 
 ### Gestures, in either shape
 
@@ -41,11 +43,21 @@ keyboard shrinks it, and its height is the difference.
 | Tap without sliding | Click where the cursor is. |
 | Double tap, release | Long press at the cursor. |
 | Double tap, then slide without lifting | Drag from the cursor. Slide straight away for a swipe (scrolling); rest a moment first and the drag presses and holds before moving, which is what picking an icon up needs. |
-| Triple tap (bubble only) | Switches the bubble off: it fades to a quarter and drives nothing until another triple tap brings it back. |
+| Triple tap (bubble only) | Switches the bubble off: it fades to a quarter and stops taking touches at all, so edge swipes and everything behind it work normally. |
+| Volume up + down together | Switches the bubble off or back on. The only way back, since a switched-off bubble cannot hear a tap. |
 
 The triple tap costs the bubble a double-tap timeout of delay on its click and long press, since
 both have to wait and see whether another tap is coming. The panel does not have the triple tap
 and so does not pay for it.
+
+A drag is streamed rather than sent in one piece: the press goes down when the drag starts and is
+extended towards the cursor every 50ms with `StrokeDescription.continueStroke`, so the page moves
+while the finger is still moving instead of jumping once it is lifted. It runs about a segment
+behind the finger. Devices older than Oreo have no continued strokes, and fall back to sending the
+whole drag on release.
+
+The cursor hides itself after a few seconds of stillness - adjustable, including never - and comes
+back the moment anything moves it.
 
 ### Three details that are easy to get wrong
 

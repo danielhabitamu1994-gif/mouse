@@ -6,25 +6,45 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.Path
+import android.graphics.PointF
+import android.graphics.Rect
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.text.TextUtils
 import android.util.Log
+import android.view.KeyEvent
 import android.view.ViewConfiguration
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityWindowInfo
+import kotlin.math.abs
 
 /**
- * Performs the actual input on behalf of the trackpad.
+ * Everything that only an accessibility service can do:
  *
- * The overlays cannot inject touches themselves - only an accessibility service can, through
- * [dispatchGesture]. This service holds no state beyond its own connection; [OverlayService]
- * decides *where* to click and calls in here to make it happen.
+ * - inject taps, long presses and drags with [dispatchGesture];
+ * - Back, Home and Recents with [performGlobalAction];
+ * - find where the keyboard is, so the floating control can get out of its way;
+ * - hear both volume keys pressed together, which is how a switched-off bubble comes back.
+ *
+ * It holds no state beyond that; [OverlayService] decides what to do and calls in here.
  */
 class MouseAccessibilityService : AccessibilityService() {
 
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    private var keyboardTop = NO_KEYBOARD
+    private var volumeUpAt = 0L
+    private var volumeDownAt = 0L
+
+    /** The live drag: a stroke that is kept alive and extended while the finger moves. */
+    private var activeStroke: GestureDescription.StrokeDescription? = null
+    private var streamAt = PointF()
+    private var streamTarget: PointF? = null
+    private var streamInFlight = false
+    private var streamEnding = false
+    private var idleSegments = 0
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -33,20 +53,75 @@ class MouseAccessibilityService : AccessibilityService() {
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
+        cancelDragStream()
         instance = null
         broadcastState()
         return super.onUnbind(intent)
     }
 
     override fun onDestroy() {
+        cancelDragStream()
         instance = null
         broadcastState()
         super.onDestroy()
     }
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) = Unit
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) = checkKeyboard()
 
-    override fun onInterrupt() = Unit
+    override fun onInterrupt() = cancelDragStream()
+
+    // -------------------------------------------------------------- keyboard
+
+    /**
+     * The top edge of the keyboard in screen pixels, or [NO_KEYBOARD] when there is none. The
+     * window list is the only reliable way to learn this from a service: an overlay window is not
+     * told about the keyboard's insets on most devices.
+     */
+    fun keyboardTop(): Int = keyboardTop
+
+    private fun checkKeyboard() {
+        val top = try {
+            var found = NO_KEYBOARD
+            val bounds = Rect()
+            for (window in windows) {
+                if (window.type != AccessibilityWindowInfo.TYPE_INPUT_METHOD) continue
+                window.getBoundsInScreen(bounds)
+                if (bounds.height() > 0) found = minOf(found, bounds.top)
+            }
+            found
+        } catch (e: RuntimeException) {
+            Log.w(TAG, "Could not read the window list", e)
+            NO_KEYBOARD
+        }
+
+        if (top == keyboardTop) return
+        keyboardTop = top
+        keyboardListener?.invoke(top)
+    }
+
+    // --------------------------------------------------------- volume combo
+
+    override fun onKeyEvent(event: KeyEvent): Boolean {
+        if (event.action != KeyEvent.ACTION_DOWN) return false
+        when (event.keyCode) {
+            KeyEvent.KEYCODE_VOLUME_UP -> volumeUpAt = event.eventTime
+            KeyEvent.KEYCODE_VOLUME_DOWN -> volumeDownAt = event.eventTime
+            else -> return false
+        }
+
+        val together = volumeUpAt > 0L && volumeDownAt > 0L &&
+            abs(volumeUpAt - volumeDownAt) <= VOLUME_COMBO_MS
+        if (!together) return false
+
+        volumeUpAt = 0L
+        volumeDownAt = 0L
+        val listener = shortcutListener ?: return false
+        listener()
+        // Swallowed, so the second key of the combo does not also move the volume.
+        return true
+    }
+
+    // -------------------------------------------------------------- gestures
 
     /** Single tap at ([x], [y]), in absolute screen pixels. */
     fun tap(x: Float, y: Float, onFinished: (Boolean) -> Unit) {
@@ -60,12 +135,8 @@ class MouseAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * Press at the first point, slide to the second, release.
-     *
-     * With [hold] the press dwells long enough to register as a long press before the slide, which
-     * is what picking an icon up needs; without it the gesture reads as a swipe, which is what
-     * scrolling needs. A dwelling drag has to be dispatched as two chained gestures, because a
-     * continued stroke may only be sent after the gesture holding the first half has completed.
+     * Press at the first point, slide to the second, release - the whole thing at once, once the
+     * finger is already up. Used only where [canStreamDrag] is false.
      */
     fun drag(
         fromX: Float,
@@ -79,17 +150,12 @@ class MouseAccessibilityService : AccessibilityService() {
             moveTo(fromX, fromY)
             lineTo(toX, toY)
         }
-        if (!hold || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+        if (!hold || !canStreamDrag()) {
             dispatch(singleStroke(slide, DRAG_DURATION_MS), onFinished)
             return
         }
 
-        val press = GestureDescription.StrokeDescription(
-            pointPath(fromX, fromY),
-            0L,
-            DRAG_HOLD_MS,
-            true
-        )
+        val press = GestureDescription.StrokeDescription(pointPath(fromX, fromY), 0L, DRAG_HOLD_MS, true)
         dispatch(GestureDescription.Builder().addStroke(press).build()) { pressed ->
             if (!pressed) {
                 onFinished(false)
@@ -108,6 +174,114 @@ class MouseAccessibilityService : AccessibilityService() {
 
     /** Back / Home / Recents and friends - see [AccessibilityService.GLOBAL_ACTION_BACK]. */
     fun globalAction(action: Int): Boolean = performGlobalAction(action)
+
+    // ------------------------------------------------------------ live drag
+
+    /** Continued strokes, and so dragging that follows the finger, need Oreo. */
+    fun canStreamDrag(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+
+    /**
+     * Press down and keep the touch alive. Every [moveDragStream] extends it towards the new
+     * point, so the app underneath scrolls while the finger is still moving instead of jumping
+     * once it is lifted. One segment of lag is the price.
+     */
+    fun startDragStream(x: Float, y: Float, hold: Boolean): Boolean {
+        if (!canStreamDrag()) return false
+        cancelDragStream()
+
+        streamAt = PointF(x, y)
+        streamTarget = null
+        streamEnding = false
+        idleSegments = 0
+
+        val duration = if (hold) DRAG_HOLD_MS else SEGMENT_MS
+        val press = GestureDescription.StrokeDescription(pointPath(x, y), 0L, duration, true)
+        // The one pixel press path ends a pixel along; carry on from there.
+        streamAt = PointF(x + 1f, y + 1f)
+        return dispatchStreamStroke(press)
+    }
+
+    fun moveDragStream(x: Float, y: Float) {
+        if (activeStroke == null || streamEnding) return
+        streamTarget = PointF(x, y)
+        pumpStream()
+    }
+
+    fun endDragStream(x: Float, y: Float) {
+        if (activeStroke == null) return
+        streamTarget = PointF(x, y)
+        streamEnding = true
+        pumpStream()
+    }
+
+    fun isStreamingDrag(): Boolean = activeStroke != null
+
+    fun cancelDragStream() {
+        activeStroke = null
+        streamTarget = null
+        streamEnding = false
+        streamInFlight = false
+        idleSegments = 0
+    }
+
+    /**
+     * Sends the next segment of the live drag. With nothing new to go to it repeats the current
+     * point, which is what keeps the touch down; enough of those in a row and the drag is assumed
+     * to have been abandoned and is released.
+     */
+    private fun pumpStream() {
+        if (streamInFlight) return
+        val previous = activeStroke ?: return
+
+        val target = streamTarget
+        if (target == null) {
+            if (++idleSegments > MAX_IDLE_SEGMENTS) {
+                streamEnding = true
+            }
+        } else {
+            idleSegments = 0
+        }
+
+        val to = target ?: streamAt
+        val path = Path().apply {
+            moveTo(streamAt.x, streamAt.y)
+            lineTo(to.x, to.y)
+        }
+        val next = previous.continueStroke(path, 0L, SEGMENT_MS, !streamEnding)
+
+        streamAt = PointF(to.x, to.y)
+        streamTarget = null
+        dispatchStreamStroke(next)
+    }
+
+    private fun dispatchStreamStroke(stroke: GestureDescription.StrokeDescription): Boolean {
+        val ending = streamEnding
+        activeStroke = stroke
+        streamInFlight = true
+
+        val callback = object : GestureResultCallback() {
+            override fun onCompleted(gestureDescription: GestureDescription?) {
+                streamInFlight = false
+                if (ending) cancelDragStream() else pumpStream()
+            }
+
+            override fun onCancelled(gestureDescription: GestureDescription?) {
+                streamInFlight = false
+                cancelDragStream()
+            }
+        }
+
+        val accepted = try {
+            dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), callback, mainHandler)
+        } catch (e: RuntimeException) {
+            Log.w(TAG, "Live drag segment rejected", e)
+            false
+        }
+        if (!accepted) cancelDragStream()
+        return accepted
+    }
+
+    // -------------------------------------------------------------- helpers
 
     private fun singleStroke(path: Path, durationMs: Long): GestureDescription =
         GestureDescription.Builder()
@@ -148,16 +322,36 @@ class MouseAccessibilityService : AccessibilityService() {
         /** Sent to our own package whenever the service connects or disconnects. */
         const val ACTION_STATE_CHANGED = "dev.habitamu.mouse.ACCESSIBILITY_STATE_CHANGED"
 
+        /** No keyboard on screen. */
+        const val NO_KEYBOARD = Int.MAX_VALUE
+
         private const val TAP_DURATION_MS = 60L
         private const val DRAG_DURATION_MS = 400L
+        private const val LONG_PRESS_MARGIN_MS = 250L
 
         /** Long enough that the target treats the press as a long press before the slide. */
         private const val DRAG_HOLD_MS = 700L
-        private const val LONG_PRESS_MARGIN_MS = 250L
+
+        /** One segment of a live drag. Shorter is smoother but more traffic. */
+        private const val SEGMENT_MS = 50L
+
+        /** About ten seconds of a drag going nowhere; assume the release was lost. */
+        private const val MAX_IDLE_SEGMENTS = 200
+
+        /** How close together the two volume keys count as being pressed at once. */
+        private const val VOLUME_COMBO_MS = 250L
 
         @Volatile
         var instance: MouseAccessibilityService? = null
             private set
+
+        /** Called with the keyboard's top edge, or [NO_KEYBOARD], whenever it changes. */
+        @Volatile
+        var keyboardListener: ((Int) -> Unit)? = null
+
+        /** Called when both volume keys are pressed together. */
+        @Volatile
+        var shortcutListener: (() -> Unit)? = null
 
         /**
          * Whether the user has switched the service on in Settings. This is checked instead of

@@ -54,6 +54,13 @@ class Prefs(context: Context) {
             .putFloat(KEY_CURSOR_SCALE, value.coerceIn(MIN_CURSOR_SCALE, MAX_CURSOR_SCALE))
             .apply()
 
+    /** Seconds of stillness before the cursor hides itself. Zero keeps it on screen. */
+    var cursorHideSeconds: Int
+        get() = prefs.getInt(KEY_CURSOR_HIDE, DEFAULT_CURSOR_HIDE_SECONDS)
+        set(value) = prefs.edit()
+            .putInt(KEY_CURSOR_HIDE, value.coerceIn(0, MAX_CURSOR_HIDE_SECONDS))
+            .apply()
+
     /** Opacity of the cursor. */
     var cursorOpacity: Float
         get() = prefs.getFloat(KEY_CURSOR_OPACITY, DEFAULT_OPACITY)
@@ -92,6 +99,7 @@ class Prefs(context: Context) {
         private const val KEY_BLOCKER_ENABLED = "blocker_enabled"
         private const val KEY_BLOCKER_FRACTION = "blocker_fraction"
         private const val KEY_SENSITIVITY = "sensitivity"
+        private const val KEY_CURSOR_HIDE = "cursor_hide_seconds"
         private const val KEY_CURSOR_OPACITY = "cursor_opacity"
         private const val KEY_CONTROL_OPACITY = "control_opacity"
         private const val KEY_CURSOR_SCALE = "cursor_scale"
@@ -114,6 +122,9 @@ class Prefs(context: Context) {
         const val MIN_CURSOR_SCALE = 0.2f
         const val MAX_CURSOR_SCALE = 2.4f
 
+        const val DEFAULT_CURSOR_HIDE_SECONDS = 4
+        const val MAX_CURSOR_HIDE_SECONDS = 30
+
         const val DEFAULT_OPACITY = 0.75f
         const val MIN_OPACITY = 0.2f
 
@@ -121,9 +132,10 @@ class Prefs(context: Context) {
         const val DIMMED_OPACITY = 0.25f
 
         /**
-         * Android discards touches that pass through an untrusted overlay above this opacity, and
-         * that includes the taps this app injects, so the overlays are never allowed past it.
+         * Full opacity is safe: every overlay in the path of an injected gesture is made
+         * transparent for the moment the gesture lands, which is what the platform's untrusted
+         * touch rule actually cares about.
          */
-        const val MAX_OPACITY = 0.8f
+        const val MAX_OPACITY = 1.0f
     }
 }
