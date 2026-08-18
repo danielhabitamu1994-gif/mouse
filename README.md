@@ -44,7 +44,7 @@ and nothing else - no screen text is ever fetched.
 | Double tap, release | Long press at the cursor. |
 | Double tap, then slide without lifting | Drag from the cursor. Slide straight away for a swipe (scrolling); rest a moment first and the drag presses and holds before moving, which is what picking an icon up needs. |
 | Triple tap (bubble only) | Switches the bubble off: it disappears entirely, cursor included, and stops taking touches, so edge swipes and everything behind it work normally. |
-| Volume up + down together | Switches the bubble off or back on. The only way back, since a switched-off bubble cannot hear a tap. |
+| Volume up + down together | Switches the bubble off or back on - held together, or one within 800ms of the other, since pressing both ends of a rocker at once is awkward. The notification carries the same toggle, for when key events are not getting through. |
 
 The triple tap costs the bubble a double-tap timeout of delay on its click and long press, since
 both have to wait and see whether another tap is coming. The panel does not have the triple tap

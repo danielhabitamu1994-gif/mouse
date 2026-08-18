@@ -124,6 +124,8 @@ class OverlayService : Service(), MouseController {
 
             ACTION_PLACE_BUBBLE -> startPlacingBubble()
 
+            ACTION_TOGGLE_CONTROL -> setControlActive(!controlActive)
+
             else -> applySettings()
         }
 
@@ -317,6 +319,7 @@ class OverlayService : Service(), MouseController {
         trackpad?.root?.visibility = if (active) View.VISIBLE else View.INVISIBLE
         applyOpacity()
         if (active) wakeCursor() else hideCursorNow()
+        updateNotification()
         toast(getString(if (active) R.string.hint_control_on else R.string.hint_control_off))
     }
 
@@ -759,6 +762,13 @@ class OverlayService : Service(), MouseController {
                 )
             )
             .addAction(0, blockerLabel, servicePendingIntent(ACTION_TOGGLE_BLOCKER, 1))
+            .addAction(
+                0,
+                getString(
+                    if (controlActive) R.string.action_control_hide else R.string.action_control_show
+                ),
+                servicePendingIntent(ACTION_TOGGLE_CONTROL, 3)
+            )
             .addAction(0, getString(R.string.action_stop), servicePendingIntent(ACTION_STOP, 2))
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
@@ -782,6 +792,9 @@ class OverlayService : Service(), MouseController {
         const val ACTION_TOGGLE_BLOCKER = "dev.habitamu.mouse.TOGGLE_BLOCKER"
         const val ACTION_PREVIEW = "dev.habitamu.mouse.PREVIEW"
         const val ACTION_PLACE_BUBBLE = "dev.habitamu.mouse.PLACE_BUBBLE"
+
+        /** The way back if the volume shortcut is not getting through. */
+        const val ACTION_TOGGLE_CONTROL = "dev.habitamu.mouse.TOGGLE_CONTROL"
         private const val EXTRA_VISIBLE = "visible"
 
         /** Sent to our own package when the overlays come up or go down. */

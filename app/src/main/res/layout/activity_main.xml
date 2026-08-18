@@ -77,6 +77,25 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:text="@string/action_open_accessibility" />
+
+            <LinearLayout
+                style="@style/SettingRow"
+                android:layout_marginTop="16dp">
+
+                <TextView
+                    style="@style/SettingLabel"
+                    android:text="@string/step_volume_shortcut" />
+
+                <TextView
+                    android:id="@+id/status_shortcut"
+                    style="@style/SettingValue"
+                    android:text="@string/status_unavailable" />
+            </LinearLayout>
+
+            <TextView
+                style="@style/Hint"
+                android:layout_marginTop="4dp"
+                android:text="@string/volume_shortcut_note" />
         </LinearLayout>
 
         <!-- Control -->

@@ -1,6 +1,7 @@
 package dev.habitamu.mouse
 
 import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.accessibilityservice.GestureDescription
 import android.content.ComponentName
 import android.content.Context
@@ -36,11 +37,28 @@ class MouseAccessibilityService : AccessibilityService() {
     private var keyboardTop = NO_KEYBOARD
     private var volumeUpAt = 0L
     private var volumeDownAt = 0L
+    private var volumeUpHeld = false
+    private var volumeDownHeld = false
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        // The flags are declared in the service's XML, but the system can still be holding an
+        // older copy of it - after an app update, typically - and then key events never arrive.
+        // Asking for them again here costs nothing and fixes that case.
+        serviceInfo?.let { info ->
+            info.flags = info.flags or
+                AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS or
+                AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+            serviceInfo = info
+        }
         instance = this
         broadcastState()
+    }
+
+    /** Whether the system is actually sending us key events, for the setup screen to report. */
+    fun canFilterKeys(): Boolean {
+        val flags = serviceInfo?.flags ?: return false
+        return flags and AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS != 0
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
@@ -90,23 +108,39 @@ class MouseAccessibilityService : AccessibilityService() {
 
     // --------------------------------------------------------- volume combo
 
+    /**
+     * Both volume keys count as the shortcut, and there are two ways to give it: hold one and
+     * press the other, or press them one after the other quickly. Most phones have a single
+     * rocker where pressing both ends at once is awkward, so the second way is the one that
+     * usually gets used.
+     */
     override fun onKeyEvent(event: KeyEvent): Boolean {
-        if (event.action != KeyEvent.ACTION_DOWN) return false
+        val down = event.action == KeyEvent.ACTION_DOWN
         when (event.keyCode) {
-            KeyEvent.KEYCODE_VOLUME_UP -> volumeUpAt = event.eventTime
-            KeyEvent.KEYCODE_VOLUME_DOWN -> volumeDownAt = event.eventTime
+            KeyEvent.KEYCODE_VOLUME_UP -> {
+                volumeUpHeld = down
+                if (down && event.repeatCount == 0) volumeUpAt = event.eventTime
+            }
+
+            KeyEvent.KEYCODE_VOLUME_DOWN -> {
+                volumeDownHeld = down
+                if (down && event.repeatCount == 0) volumeDownAt = event.eventTime
+            }
+
             else -> return false
         }
+        if (!down) return false
 
-        val together = volumeUpAt > 0L && volumeDownAt > 0L &&
+        val bothHeld = volumeUpHeld && volumeDownHeld
+        val oneAfterTheOther = volumeUpAt > 0L && volumeDownAt > 0L &&
             abs(volumeUpAt - volumeDownAt) <= VOLUME_COMBO_MS
-        if (!together) return false
+        if (!bothHeld && !oneAfterTheOther) return false
 
         volumeUpAt = 0L
         volumeDownAt = 0L
         val listener = shortcutListener ?: return false
         listener()
-        // Swallowed, so the second key of the combo does not also move the volume.
+        // Swallowed, so this key at least does not also move the volume.
         return true
     }
 
@@ -216,8 +250,8 @@ class MouseAccessibilityService : AccessibilityService() {
         /** Long enough that the target treats the press as a long press before the slide. */
         private const val DRAG_HOLD_MS = 700L
 
-        /** How close together the two volume keys count as being pressed at once. */
-        private const val VOLUME_COMBO_MS = 250L
+        /** How close together the two volume keys count as one shortcut. */
+        private const val VOLUME_COMBO_MS = 800L
 
         @Volatile
         var instance: MouseAccessibilityService? = null

@@ -39,6 +39,12 @@
 
     <string name="status_granted">On</string>
     <string name="status_missing">Off</string>
+    <string name="status_ready">Ready</string>
+    <string name="status_unavailable">Not working</string>
+    <string name="step_volume_shortcut">Volume up + down shortcut</string>
+    <string name="volume_shortcut_note">If this says "Not working", switch the Mouse accessibility
+        service off and on again in Settings. The notification also has a button to hide and show
+        the bubble.</string>
     <string name="status_service_running">Overlays are running</string>
     <string name="status_service_stopped">Overlays are stopped</string>
 
@@ -46,6 +52,8 @@
     <string name="action_open_accessibility">Open accessibility settings</string>
     <string name="action_start">Start</string>
     <string name="action_stop">Stop</string>
+    <string name="action_control_hide">Hide bubble</string>
+    <string name="action_control_show">Show bubble</string>
     <string name="action_blocker_on">Block touches</string>
     <string name="action_blocker_off">Unblock touches</string>
 
