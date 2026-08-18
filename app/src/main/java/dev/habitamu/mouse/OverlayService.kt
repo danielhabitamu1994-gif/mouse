@@ -1,10 +1,12 @@
 package dev.habitamu.mouse
 
+import android.animation.ValueAnimator
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.content.res.Configuration
@@ -20,6 +22,7 @@ import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
+import android.view.animation.DecelerateInterpolator
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
@@ -28,8 +31,8 @@ import androidx.core.app.ServiceCompat
  * Owns the three overlay windows and the virtual cursor.
  *
  * Window order matters and is the order they are added: the blocker sits lowest, the cursor
- * above it so it stays visible, and the trackpad on top so it keeps working even if the user
- * drags it into the blocked region.
+ * above it so it stays visible, and the floating control on top so it keeps working even when it
+ * is over the blocked region.
  */
 class OverlayService : Service(), MouseController {
 
@@ -43,17 +46,21 @@ class OverlayService : Service(), MouseController {
     private var cursorView: CursorView? = null
     private var cursorParams: WindowManager.LayoutParams? = null
     private var trackpad: TrackpadPanel? = null
-    private var trackpadParams: WindowManager.LayoutParams? = null
+    private var padParams: WindowManager.LayoutParams? = null
 
     private var screenWidth = 0
     private var screenHeight = 0
     private var cursorX = 0f
     private var cursorY = 0f
     private var dragAnchor: PointF? = null
+    private var dragHolds = false
 
     /** True while a synthetic gesture is passing through the blocked region. */
     private var blockerSuspended = false
     private var overlaysAdded = false
+    private var placingBubble = false
+    private var springBack: ValueAnimator? = null
+    private var lastMode = PadMode.TRACKPAD
 
     private val restoreBlocking = Runnable { restoreTouchBlocking() }
 
@@ -71,20 +78,25 @@ class OverlayService : Service(), MouseController {
         // The notification has to go up on every entry, including restarts by the system.
         goForeground()
 
-        when (intent?.action) {
-            ACTION_STOP -> {
-                stopSelf()
-                return START_NOT_STICKY
-            }
+        if (intent?.action == ACTION_STOP) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        if (!addOverlays()) return START_NOT_STICKY
 
+        when (intent?.action) {
             ACTION_TOGGLE_BLOCKER -> {
                 toggleBlocker()
                 trackpad?.syncState()
             }
 
-            ACTION_REFRESH -> applySettings()
+            ACTION_PREVIEW -> {
+                blockerView?.showOutline = intent.getBooleanExtra(EXTRA_VISIBLE, false)
+            }
 
-            else -> if (!addOverlays()) return START_NOT_STICKY
+            ACTION_PLACE_BUBBLE -> startPlacingBubble()
+
+            else -> applySettings()
         }
 
         return START_STICKY
@@ -95,15 +107,16 @@ class OverlayService : Service(), MouseController {
         // The new display size is not always published by the time this callback runs.
         handler.postDelayed({
             refreshScreenMetrics()
-            applySettings()
+            applyBlockerState()
             moveCursorBy(0f, 0f)
-            clampTrackpad()
+            clampPad()
         }, ROTATION_SETTLE_MS)
     }
 
     override fun onDestroy() {
         isRunning = false
         broadcastState()
+        springBack?.cancel()
         handler.removeCallbacksAndMessages(null)
         removeOverlays()
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
@@ -118,10 +131,7 @@ class OverlayService : Service(), MouseController {
             stopSelf()
             return false
         }
-        if (overlaysAdded) {
-            applySettings()
-            return true
-        }
+        if (overlaysAdded) return true
 
         refreshScreenMetrics()
         cursorX = screenWidth / 2f
@@ -129,10 +139,12 @@ class OverlayService : Service(), MouseController {
 
         addBlocker()
         addCursor()
-        addTrackpad()
+        addPad()
 
         overlaysAdded = true
+        lastMode = settings.padMode
         applySettings()
+        positionPadForMode()
         return true
     }
 
@@ -155,16 +167,14 @@ class OverlayService : Service(), MouseController {
     private fun addCursor() {
         val size = dpInt(CURSOR_WINDOW_DP)
         val view = CursorView(this)
-        val params = overlayParams(width = size, height = size, touchable = false).apply {
-            alpha = CURSOR_WINDOW_ALPHA
-        }
+        val params = overlayParams(width = size, height = size, touchable = false)
         cursorView = view
         cursorParams = params
         windowManager.addView(view, params)
         updateCursorWindow()
     }
 
-    private fun addTrackpad() {
+    private fun addPad() {
         val panel = TrackpadPanel(this, this)
         val params = overlayParams(
             width = WindowManager.LayoutParams.WRAP_CONTENT,
@@ -172,27 +182,18 @@ class OverlayService : Service(), MouseController {
             touchable = true
         )
         trackpad = panel
-        trackpadParams = params
+        padParams = params
         windowManager.addView(panel.root, params)
-
-        // Park it in the bottom right corner once it has been measured.
-        panel.root.post {
-            val margin = dpInt(TRACKPAD_MARGIN_DP)
-            params.x = screenWidth - panel.root.width - margin
-            params.y = screenHeight - panel.root.height - margin - dpInt(NAV_BAR_ALLOWANCE_DP)
-            clampTrackpad()
-        }
     }
 
     private fun removeOverlays() {
-        trackpad?.release()
         trackpad?.root?.let { safeRemove(it) }
         cursorView?.let { safeRemove(it) }
         blockerView?.let { safeRemove(it) }
         trackpad = null
         cursorView = null
         blockerView = null
-        trackpadParams = null
+        padParams = null
         cursorParams = null
         blockerParams = null
         overlaysAdded = false
@@ -219,7 +220,29 @@ class OverlayService : Service(), MouseController {
 
     private fun applySettings() {
         applyBlockerState()
+        applyOpacity()
+
+        val mode = settings.padMode
+        trackpad?.applyMode(mode)
+        if (mode != lastMode) {
+            lastMode = mode
+            placingBubble = false
+            positionPadForMode()
+        }
         trackpad?.syncState()
+        updateNotification()
+    }
+
+    private fun applyOpacity() {
+        val alpha = settings.overlayOpacity
+        cursorParams?.let { params ->
+            params.alpha = alpha
+            cursorView?.let { safeUpdate(it, params) }
+        }
+        padParams?.let { params ->
+            params.alpha = alpha
+            trackpad?.root?.let { safeUpdate(it, params) }
+        }
     }
 
     private fun applyBlockerState() {
@@ -238,17 +261,17 @@ class OverlayService : Service(), MouseController {
      * whichever window is on top at that point - which would be our own overlays. Any overlay the
      * gesture passes through is made untouchable for its duration and restored right after.
      *
-     * Only the overlays actually under the gesture are opened up: leaving the trackpad touchable
-     * where it is not in the way keeps the finger that is still resting on it working, and keeps
-     * the blocked region blocked for everything except the tap we asked for.
+     * Only the overlays actually under the gesture are opened up: leaving the pad touchable where
+     * it is not in the way keeps a finger that is still resting on it working, and keeps the
+     * blocked region blocked for everything except the tap we asked for.
      */
     private fun openPathFor(x1: Float, y1: Float, x2: Float, y2: Float) {
         blockerSuspended = y1 < blockerHeightPx() || y2 < blockerHeightPx()
         applyBlockerState()
 
         val panel = trackpad?.root
-        val params = trackpadParams
-        if (panel != null && params != null && (overTrackpad(x1, y1) || overTrackpad(x2, y2))) {
+        val params = padParams
+        if (panel != null && params != null && (overPad(x1, y1) || overPad(x2, y2))) {
             params.flags = withTouchable(params.flags, false)
             safeUpdate(panel, params)
         }
@@ -259,16 +282,16 @@ class OverlayService : Service(), MouseController {
         applyBlockerState()
 
         val panel = trackpad?.root
-        val params = trackpadParams
+        val params = padParams
         if (panel != null && params != null) {
             params.flags = withTouchable(params.flags, true)
             safeUpdate(panel, params)
         }
     }
 
-    private fun overTrackpad(x: Float, y: Float): Boolean {
+    private fun overPad(x: Float, y: Float): Boolean {
         val panel = trackpad?.root ?: return false
-        val params = trackpadParams ?: return false
+        val params = padParams ?: return false
         return x >= params.x && x <= params.x + panel.width &&
             y >= params.y && y <= params.y + panel.height
     }
@@ -313,7 +336,141 @@ class OverlayService : Service(), MouseController {
         }
     }
 
-    // ------------------------------------------------------------- controller
+    // ------------------------------------------------------------- the pad
+
+    private fun positionPadForMode() {
+        val params = padParams ?: return
+        val (width, height) = measuredPadSize()
+        val margin = dpInt(PAD_MARGIN_DP)
+
+        val stored = if (settings.padMode == PadMode.BUBBLE) {
+            settings.bubbleHomeX to settings.bubbleHomeY
+        } else {
+            settings.panelX to settings.panelY
+        }
+
+        if (stored.first == Prefs.UNSET || stored.second == Prefs.UNSET) {
+            params.x = screenWidth - width - margin
+            params.y = (screenHeight * DEFAULT_PAD_HEIGHT_FRACTION).toInt() - height / 2
+        } else {
+            params.x = stored.first
+            params.y = stored.second
+        }
+        clampPad(width, height)
+    }
+
+    private fun measuredPadSize(): Pair<Int, Int> {
+        val root = trackpad?.root ?: return 0 to 0
+        root.measure(
+            View.MeasureSpec.makeMeasureSpec(screenWidth, View.MeasureSpec.AT_MOST),
+            View.MeasureSpec.makeMeasureSpec(screenHeight, View.MeasureSpec.AT_MOST)
+        )
+        return root.measuredWidth to root.measuredHeight
+    }
+
+    private fun padSize(): Pair<Int, Int> {
+        val root = trackpad?.root ?: return 0 to 0
+        return if (root.width > 0 && root.height > 0) {
+            root.width to root.height
+        } else {
+            measuredPadSize()
+        }
+    }
+
+    private fun clampPad(width: Int = padSize().first, height: Int = padSize().second) {
+        val root = trackpad?.root ?: return
+        val params = padParams ?: return
+        params.x = params.x.coerceIn(0, (screenWidth - width).coerceAtLeast(0))
+        params.y = params.y.coerceIn(0, (screenHeight - height).coerceAtLeast(0))
+        safeUpdate(root, params)
+    }
+
+    override fun movePadBy(dx: Float, dy: Float) {
+        springBack?.cancel()
+        val params = padParams ?: return
+        params.x += dx.toInt()
+        params.y += dy.toInt()
+        clampPad()
+    }
+
+    override fun onPadReleased() {
+        val params = padParams ?: return
+        when {
+            placingBubble -> {
+                settings.bubbleHomeX = params.x
+                settings.bubbleHomeY = params.y
+                placingBubble = false
+                trackpad?.syncState()
+                toast(getString(R.string.hint_bubble_placed))
+            }
+
+            settings.padMode == PadMode.BUBBLE -> springPadHome()
+
+            else -> {
+                settings.panelX = params.x
+                settings.panelY = params.y
+            }
+        }
+    }
+
+    /**
+     * The bubble always returns to its home spot; the cursor stays where the stroke left it, so
+     * long journeys can be made with several strokes.
+     */
+    private fun springPadHome() {
+        val params = padParams ?: return
+        val root = trackpad?.root ?: return
+        val (width, height) = padSize()
+        val homeX = settings.bubbleHomeX.takeIf { it != Prefs.UNSET }
+            ?: (screenWidth - width - dpInt(PAD_MARGIN_DP))
+        val homeY = settings.bubbleHomeY.takeIf { it != Prefs.UNSET }
+            ?: ((screenHeight * DEFAULT_PAD_HEIGHT_FRACTION).toInt() - height / 2)
+
+        val fromX = params.x
+        val fromY = params.y
+        if (fromX == homeX && fromY == homeY) return
+
+        springBack?.cancel()
+        springBack = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = SPRING_BACK_MS
+            interpolator = DecelerateInterpolator()
+            addUpdateListener { animator ->
+                val progress = animator.animatedValue as Float
+                params.x = (fromX + (homeX - fromX) * progress).toInt()
+                params.y = (fromY + (homeY - fromY) * progress).toInt()
+                safeUpdate(root, params)
+            }
+            start()
+        }
+    }
+
+    override fun onPadResized() {
+        val root = trackpad?.root ?: return
+        val params = padParams ?: return
+        val oldWidth = root.width
+        val oldHeight = root.height
+        val (width, height) = measuredPadSize()
+
+        // Pin the corner nearest the screen edge, so a panel opened from a bubble in the bottom
+        // right grows to the left and upwards instead of shoving against the edge.
+        if (oldWidth > 0 && params.x + oldWidth / 2 > screenWidth / 2) {
+            params.x += oldWidth - width
+        }
+        if (oldHeight > 0 && params.y + oldHeight / 2 > screenHeight / 2) {
+            params.y += oldHeight - height
+        }
+        clampPad(width, height)
+    }
+
+    override fun isPlacingBubble(): Boolean = placingBubble
+
+    private fun startPlacingBubble() {
+        placingBubble = true
+        trackpad?.syncState()
+        toast(getString(R.string.hint_place_bubble))
+    }
+
+    // ------------------------------------------------------------- pointer
 
     override fun moveCursorBy(dx: Float, dy: Float) {
         // One pixel of headroom: a tap is dispatched as a 1px path and must stay on the display.
@@ -325,9 +482,9 @@ class OverlayService : Service(), MouseController {
     private fun updateCursorWindow() {
         val view = cursorView ?: return
         val params = cursorParams ?: return
-        val half = dpInt(CURSOR_WINDOW_DP) / 2
-        params.x = (cursorX - half).toInt()
-        params.y = (cursorY - half).toInt()
+        val size = dpInt(CURSOR_WINDOW_DP)
+        params.x = (cursorX - CursorView.hotspotX(size)).toInt()
+        params.y = (cursorY - CursorView.hotspotY(size)).toInt()
         safeUpdate(view, params)
     }
 
@@ -347,24 +504,21 @@ class OverlayService : Service(), MouseController {
         }
     }
 
-    override fun armDrag() {
+    override fun beginDrag(withHold: Boolean) {
         dragAnchor = PointF(cursorX, cursorY)
-        toast(getString(R.string.hint_drag_armed))
+        dragHolds = withHold
+        cursorView?.gestureInFlight = true
     }
 
-    override fun cancelDrag() {
-        dragAnchor = null
-    }
-
-    override fun isDragArmed(): Boolean = dragAnchor != null
-
-    override fun finishDragAtCursor() {
+    override fun endDrag() {
         val anchor = dragAnchor ?: return
         dragAnchor = null
         val x = cursorX
         val y = cursorY
         withInjectionPassthrough(anchor.x, anchor.y, x, y) { service, done ->
-            service.drag(anchor.x, anchor.y, x, y) { delivered -> onGestureFinished(delivered, done) }
+            service.drag(anchor.x, anchor.y, x, y, dragHolds) { delivered ->
+                onGestureFinished(delivered, done)
+            }
         }
     }
 
@@ -377,15 +531,6 @@ class OverlayService : Service(), MouseController {
         service.globalAction(action)
     }
 
-    override fun moveTrackpadBy(dx: Float, dy: Float) {
-        val params = trackpadParams ?: return
-        params.x += dx.toInt()
-        params.y += dy.toInt()
-        clampTrackpad()
-    }
-
-    override fun onTrackpadResized() = clampTrackpad()
-
     override fun toggleBlocker() {
         settings.blockerEnabled = !settings.blockerEnabled
         applyBlockerState()
@@ -393,14 +538,6 @@ class OverlayService : Service(), MouseController {
     }
 
     override fun isBlockerEnabled(): Boolean = settings.blockerEnabled
-
-    private fun clampTrackpad() {
-        val view = trackpad?.root ?: return
-        val params = trackpadParams ?: return
-        params.x = params.x.coerceIn(0, (screenWidth - view.width).coerceAtLeast(0))
-        params.y = params.y.coerceIn(0, (screenHeight - view.height).coerceAtLeast(0))
-        safeUpdate(view, params)
-    }
 
     private fun withInjectionPassthrough(
         x1: Float,
@@ -412,6 +549,7 @@ class OverlayService : Service(), MouseController {
         val service = MouseAccessibilityService.instance
         if (service == null) {
             toast(getString(R.string.error_accessibility_off))
+            cursorView?.gestureInFlight = false
             return
         }
 
@@ -421,10 +559,14 @@ class OverlayService : Service(), MouseController {
         // Safety net: never leave the screen unblocked if a gesture callback goes missing.
         handler.postDelayed(restoreBlocking, MAX_PASSTHROUGH_MS)
 
-        action(service) {
-            handler.removeCallbacks(restoreBlocking)
-            handler.postDelayed(restoreBlocking, PASSTHROUGH_TAIL_MS)
-        }
+        // A window flag change only reaches the window manager on the next frames. Injecting
+        // straight away would race it and the gesture would land on the overlay we just opened.
+        handler.postDelayed({
+            action(service) {
+                handler.removeCallbacks(restoreBlocking)
+                handler.postDelayed(restoreBlocking, PASSTHROUGH_TAIL_MS)
+            }
+        }, INJECTION_SETTLE_MS)
     }
 
     private fun onGestureFinished(delivered: Boolean, done: () -> Unit) {
@@ -520,6 +662,9 @@ class OverlayService : Service(), MouseController {
         const val ACTION_STOP = "dev.habitamu.mouse.STOP"
         const val ACTION_REFRESH = "dev.habitamu.mouse.REFRESH"
         const val ACTION_TOGGLE_BLOCKER = "dev.habitamu.mouse.TOGGLE_BLOCKER"
+        const val ACTION_PREVIEW = "dev.habitamu.mouse.PREVIEW"
+        const val ACTION_PLACE_BUBBLE = "dev.habitamu.mouse.PLACE_BUBBLE"
+        private const val EXTRA_VISIBLE = "visible"
 
         /** Sent to our own package when the overlays come up or go down. */
         const val ACTION_STATE_CHANGED = "dev.habitamu.mouse.OVERLAY_STATE_CHANGED"
@@ -532,28 +677,39 @@ class OverlayService : Service(), MouseController {
         private const val NOTIFICATION_ID = 42
 
         private const val CURSOR_WINDOW_DP = 56f
-        private const val TRACKPAD_MARGIN_DP = 12f
-        private const val NAV_BAR_ALLOWANCE_DP = 28f
+        private const val PAD_MARGIN_DP = 10f
 
-        /** Both windows stay under the 0.8 opacity the platform treats as obscuring. */
+        /** The blocker is invisible outside the settings screen; this is only for touch policy. */
         private const val BLOCKER_WINDOW_ALPHA = 0.5f
-        private const val CURSOR_WINDOW_ALPHA = 0.75f
 
         private const val INITIAL_CURSOR_HEIGHT_FRACTION = 0.35f
-        private const val MAX_PASSTHROUGH_MS = 2_000L
+        private const val DEFAULT_PAD_HEIGHT_FRACTION = 0.75f
+        private const val MAX_PASSTHROUGH_MS = 2_500L
+        private const val INJECTION_SETTLE_MS = 50L
         private const val PASSTHROUGH_TAIL_MS = 60L
         private const val ROTATION_SETTLE_MS = 300L
+        private const val SPRING_BACK_MS = 180L
 
-        fun start(context: android.content.Context) {
-            context.startService(Intent(context, OverlayService::class.java).setAction(ACTION_START))
+        fun start(context: Context) = send(context, ACTION_START)
+
+        fun stop(context: Context) = send(context, ACTION_STOP)
+
+        fun refresh(context: Context) = send(context, ACTION_REFRESH)
+
+        fun placeBubble(context: Context) = send(context, ACTION_PLACE_BUBBLE)
+
+        /** Show or hide the blocker outline, which is only ever drawn on the settings screen. */
+        fun setPreview(context: Context, visible: Boolean) {
+            if (!isRunning) return
+            context.startService(
+                Intent(context, OverlayService::class.java)
+                    .setAction(ACTION_PREVIEW)
+                    .putExtra(EXTRA_VISIBLE, visible)
+            )
         }
 
-        fun stop(context: android.content.Context) {
-            context.startService(Intent(context, OverlayService::class.java).setAction(ACTION_STOP))
-        }
-
-        fun refresh(context: android.content.Context) {
-            context.startService(Intent(context, OverlayService::class.java).setAction(ACTION_REFRESH))
+        private fun send(context: Context, action: String) {
+            context.startService(Intent(context, OverlayService::class.java).setAction(action))
         }
     }
 }

@@ -3,8 +3,6 @@ package dev.habitamu.mouse
 import android.accessibilityservice.AccessibilityService
 import android.annotation.SuppressLint
 import android.content.Context
-import android.os.Handler
-import android.os.Looper
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
@@ -16,14 +14,18 @@ import kotlin.math.hypot
 import kotlin.math.min
 
 /**
- * The floating trackpad. Finger movement inside the pad is translated into relative cursor
- * movement; lifting the finger asks [MouseController] to click wherever the cursor ended up.
+ * The floating control, in either of its two shapes:
  *
- * The panel can be dragged around by its header and collapsed to a small puck so it does not
- * cover the part of the screen that still works.
+ * - [PadMode.TRACKPAD]: a panel with a pad area and navigation keys, which collapses to a puck.
+ * - [PadMode.BUBBLE]: nothing but the puck. It follows the finger, the cursor moves with it, and
+ *   [MouseController.onPadReleased] springs it back to its home spot afterwards.
+ *
+ * Both shapes read gestures through the same [PointerGestureDetector], so tap, double-tap-hold
+ * and drag behave identically wherever the finger lands.
  */
 @SuppressLint("ClickableViewAccessibility")
-class TrackpadPanel(context: Context, private val controller: MouseController) {
+class TrackpadPanel(context: Context, private val controller: MouseController) :
+    PointerGestureDetector.Listener {
 
     val root: View = LayoutInflater.from(context).inflate(R.layout.overlay_trackpad, null)
 
@@ -31,140 +33,67 @@ class TrackpadPanel(context: Context, private val controller: MouseController) {
     private val collapsedPuck: View = root.findViewById(R.id.panel_collapsed)
     private val pad: View = root.findViewById(R.id.pad)
     private val padHint: TextView = root.findViewById(R.id.pad_hint)
-    private val modeButton: Button = root.findViewById(R.id.btn_mode)
-    private val dragButton: Button = root.findViewById(R.id.btn_drag)
     private val blockerButton: Button = root.findViewById(R.id.btn_blocker)
 
-    private val handler = Handler(Looper.getMainLooper())
+    private val detector = PointerGestureDetector(context, this)
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
-    private val longPressTimeout = ViewConfiguration.getLongPressTimeout().toLong()
 
-    private var lastX = 0f
-    private var lastY = 0f
-    private var travelled = 0f
+    private var mode = PadMode.TRACKPAD
+    private var collapsed = true
 
-    /** Set when a long press already fired, so the following release does not also click. */
-    private var gestureConsumed = false
-
-    private val longPressRunnable = Runnable {
-        gestureConsumed = true
-        controller.longClickAtCursor()
-    }
-
-    init {
-        pad.setOnTouchListener { _, event -> onPadTouch(event) }
-
-        root.findViewById<View>(R.id.handle).setOnTouchListener(PanelDragListener(onTap = null))
-        collapsedPuck.setOnTouchListener(PanelDragListener(onTap = { setCollapsed(false) }))
-        root.findViewById<View>(R.id.btn_collapse).setOnClickListener { setCollapsed(true) }
-
-        modeButton.setOnClickListener {
-            controller.settings.clickOnRelease = !controller.settings.clickOnRelease
-            syncState()
-        }
-        root.findViewById<View>(R.id.btn_long).setOnClickListener { controller.longClickAtCursor() }
-        dragButton.setOnClickListener {
-            if (controller.isDragArmed()) controller.cancelDrag() else controller.armDrag()
-            syncState()
-        }
-        blockerButton.setOnClickListener {
-            controller.toggleBlocker()
-            syncState()
-        }
-
-        root.findViewById<View>(R.id.btn_back).setOnClickListener {
-            controller.globalAction(AccessibilityService.GLOBAL_ACTION_BACK)
-        }
-        root.findViewById<View>(R.id.btn_home).setOnClickListener {
-            controller.globalAction(AccessibilityService.GLOBAL_ACTION_HOME)
-        }
-        root.findViewById<View>(R.id.btn_recents).setOnClickListener {
-            controller.globalAction(AccessibilityService.GLOBAL_ACTION_RECENTS)
-        }
-
+    fun applyMode(newMode: PadMode) {
+        mode = newMode
+        if (newMode == PadMode.BUBBLE) setCollapsed(true)
         syncState()
     }
 
     /** Refresh every label that mirrors state owned elsewhere. */
     fun syncState() {
-        val tapMode = controller.settings.clickOnRelease
-        modeButton.setText(if (tapMode) R.string.pad_mode_tap else R.string.pad_mode_move)
-        modeButton.isSelected = tapMode
-
-        val armed = controller.isDragArmed()
-        dragButton.isSelected = armed
-
         blockerButton.setText(
             if (controller.isBlockerEnabled()) R.string.pad_blocker_on else R.string.pad_blocker_off
         )
         blockerButton.isSelected = controller.isBlockerEnabled()
-
-        padHint.setText(
-            when {
-                armed -> R.string.pad_hint_drag
-                tapMode -> R.string.pad_hint_tap
-                else -> R.string.pad_hint_move
-            }
-        )
+        padHint.setText(R.string.pad_hint)
+        collapsedPuck.isActivated = controller.isPlacingBubble()
     }
 
-    fun setCollapsed(collapsed: Boolean) {
-        expandedPanel.visibility = if (collapsed) View.GONE else View.VISIBLE
-        collapsedPuck.visibility = if (collapsed) View.VISIBLE else View.GONE
-        root.post { controller.onTrackpadResized() }
+    fun setCollapsed(value: Boolean) {
+        if (collapsed == value) return
+        if (!value && mode == PadMode.BUBBLE) return
+
+        collapsed = value
+        expandedPanel.visibility = if (value) View.GONE else View.VISIBLE
+        collapsedPuck.visibility = if (value) View.VISIBLE else View.GONE
+        // Reposition before the layout pass runs, so the panel does not flash at the wrong edge.
+        controller.onPadResized()
     }
 
-    fun release() {
-        handler.removeCallbacks(longPressRunnable)
+    // ------------------------------------------------------------- gestures
+
+    override fun onPointerMove(dx: Float, dy: Float) {
+        val gain = gainFor(dx, dy)
+        controller.moveCursorBy(dx * gain, dy * gain)
+        // In bubble mode the puck itself follows the finger, like a stick you keep stroking.
+        if (mode == PadMode.BUBBLE) controller.movePadBy(dx, dy)
     }
 
-    private fun onPadTouch(event: MotionEvent): Boolean {
-        when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                lastX = event.x
-                lastY = event.y
-                travelled = 0f
-                gestureConsumed = false
-                pad.isPressed = true
-                // A hold on the pad is a long click at the cursor, the same as holding an icon.
-                if (!controller.isDragArmed()) {
-                    handler.postDelayed(longPressRunnable, longPressTimeout)
-                }
-            }
+    override fun onTap() = controller.clickAtCursor()
 
-            MotionEvent.ACTION_MOVE -> {
-                val dx = event.x - lastX
-                val dy = event.y - lastY
-                lastX = event.x
-                lastY = event.y
+    override fun onHold() = controller.longClickAtCursor()
 
-                travelled += hypot(dx, dy)
-                if (travelled > touchSlop) handler.removeCallbacks(longPressRunnable)
+    override fun onDragBegin(withHold: Boolean) = controller.beginDrag(withHold)
 
-                val gain = gainFor(dx, dy)
-                controller.moveCursorBy(dx * gain, dy * gain)
-            }
+    override fun onDragEnd() = controller.endDrag()
 
-            MotionEvent.ACTION_UP -> {
-                handler.removeCallbacks(longPressRunnable)
-                pad.isPressed = false
-                if (!gestureConsumed) {
-                    when {
-                        controller.isDragArmed() -> {
-                            controller.finishDragAtCursor()
-                            syncState()
-                        }
-                        controller.settings.clickOnRelease -> controller.clickAtCursor()
-                    }
-                }
-            }
+    override fun onTouchStart() {
+        pad.isPressed = true
+        collapsedPuck.isPressed = true
+    }
 
-            MotionEvent.ACTION_CANCEL -> {
-                handler.removeCallbacks(longPressRunnable)
-                pad.isPressed = false
-            }
-        }
-        return true
+    override fun onTouchEnd() {
+        pad.isPressed = false
+        collapsedPuck.isPressed = false
+        if (mode == PadMode.BUBBLE) controller.onPadReleased()
     }
 
     /**
@@ -177,9 +106,10 @@ class TrackpadPanel(context: Context, private val controller: MouseController) {
         return controller.settings.sensitivity * boost
     }
 
-    /** Drags the whole window by the finger delta; a tap without movement is forwarded instead. */
-    private inner class PanelDragListener(private val onTap: (() -> Unit)?) : View.OnTouchListener {
+    // -------------------------------------------------------- window moving
 
+    /** Drags the whole window by the finger delta. */
+    private val windowDrag = object : View.OnTouchListener {
         private var anchorX = 0f
         private var anchorY = 0f
         private var moved = false
@@ -197,18 +127,87 @@ class TrackpadPanel(context: Context, private val controller: MouseController) {
                     val dy = event.rawY - anchorY
                     if (!moved && (abs(dx) > touchSlop || abs(dy) > touchSlop)) moved = true
                     if (moved) {
-                        controller.moveTrackpadBy(dx, dy)
+                        controller.movePadBy(dx, dy)
                         anchorX = event.rawX
                         anchorY = event.rawY
                     }
                 }
 
-                MotionEvent.ACTION_UP -> if (!moved) onTap?.invoke()
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> controller.onPadReleased()
 
                 else -> return false
             }
             return true
         }
+    }
+
+    /** The puck in trackpad mode: drag to move it, tap to open the panel. */
+    private val puckDrag = object : View.OnTouchListener {
+        private var anchorX = 0f
+        private var anchorY = 0f
+        private var moved = false
+
+        override fun onTouch(view: View, event: MotionEvent): Boolean {
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    anchorX = event.rawX
+                    anchorY = event.rawY
+                    moved = false
+                }
+
+                MotionEvent.ACTION_MOVE -> {
+                    val dx = event.rawX - anchorX
+                    val dy = event.rawY - anchorY
+                    if (!moved && (abs(dx) > touchSlop || abs(dy) > touchSlop)) moved = true
+                    if (moved) {
+                        controller.movePadBy(dx, dy)
+                        anchorX = event.rawX
+                        anchorY = event.rawY
+                    }
+                }
+
+                MotionEvent.ACTION_UP -> {
+                    if (moved) controller.onPadReleased() else setCollapsed(false)
+                }
+
+                MotionEvent.ACTION_CANCEL -> controller.onPadReleased()
+
+                else -> return false
+            }
+            return true
+        }
+    }
+
+    init {
+        pad.setOnTouchListener { _, event -> detector.onTouch(event) }
+
+        collapsedPuck.setOnTouchListener { _, event ->
+            when {
+                // Choosing the bubble's home spot: the finger drags the window, nothing else.
+                controller.isPlacingBubble() -> windowDrag.onTouch(collapsedPuck, event)
+                mode == PadMode.BUBBLE -> detector.onTouch(event)
+                else -> puckDrag.onTouch(collapsedPuck, event)
+            }
+        }
+
+        root.findViewById<View>(R.id.handle).setOnTouchListener(windowDrag)
+        root.findViewById<View>(R.id.btn_collapse).setOnClickListener { setCollapsed(true) }
+        blockerButton.setOnClickListener {
+            controller.toggleBlocker()
+            syncState()
+        }
+
+        root.findViewById<View>(R.id.btn_back).setOnClickListener {
+            controller.globalAction(AccessibilityService.GLOBAL_ACTION_BACK)
+        }
+        root.findViewById<View>(R.id.btn_home).setOnClickListener {
+            controller.globalAction(AccessibilityService.GLOBAL_ACTION_HOME)
+        }
+        root.findViewById<View>(R.id.btn_recents).setOnClickListener {
+            controller.globalAction(AccessibilityService.GLOBAL_ACTION_RECENTS)
+        }
+
+        applyMode(controller.settings.padMode)
     }
 
     private companion object {

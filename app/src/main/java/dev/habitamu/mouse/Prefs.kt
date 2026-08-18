@@ -3,6 +3,19 @@ package dev.habitamu.mouse
 import android.content.Context
 import android.content.SharedPreferences
 
+/** How the floating control behaves. */
+enum class PadMode {
+    /** Full panel with a pad area and navigation keys; collapses to a puck. */
+    TRACKPAD,
+
+    /** Nothing but the puck: it follows the finger and springs back to its home position. */
+    BUBBLE;
+
+    companion object {
+        fun of(name: String?): PadMode = entries.firstOrNull { it.name == name } ?: TRACKPAD
+    }
+}
+
 /**
  * Persisted user settings, shared by [MainActivity] and [OverlayService].
  */
@@ -10,6 +23,10 @@ class Prefs(context: Context) {
 
     private val prefs: SharedPreferences =
         context.applicationContext.getSharedPreferences(NAME, Context.MODE_PRIVATE)
+
+    var padMode: PadMode
+        get() = PadMode.of(prefs.getString(KEY_PAD_MODE, PadMode.TRACKPAD.name))
+        set(value) = prefs.edit().putString(KEY_PAD_MODE, value.name).apply()
 
     /** Whether the touch blocker window is currently armed. */
     var blockerEnabled: Boolean
@@ -23,24 +40,51 @@ class Prefs(context: Context) {
             .putFloat(KEY_BLOCKER_FRACTION, value.coerceIn(MIN_BLOCKER_FRACTION, MAX_BLOCKER_FRACTION))
             .apply()
 
-    /** How far the cursor travels per pixel of finger movement on the trackpad. */
+    /** How far the cursor travels per pixel of finger movement. */
     var sensitivity: Float
         get() = prefs.getFloat(KEY_SENSITIVITY, DEFAULT_SENSITIVITY)
         set(value) = prefs.edit()
             .putFloat(KEY_SENSITIVITY, value.coerceIn(MIN_SENSITIVITY, MAX_SENSITIVITY))
             .apply()
 
-    /** When true, lifting a finger off the trackpad taps at the cursor. */
-    var clickOnRelease: Boolean
-        get() = prefs.getBoolean(KEY_CLICK_ON_RELEASE, true)
-        set(value) = prefs.edit().putBoolean(KEY_CLICK_ON_RELEASE, value).apply()
+    /** Opacity of the cursor and of the floating control. */
+    var overlayOpacity: Float
+        get() = prefs.getFloat(KEY_OPACITY, DEFAULT_OPACITY)
+        set(value) = prefs.edit()
+            .putFloat(KEY_OPACITY, value.coerceIn(MIN_OPACITY, MAX_OPACITY))
+            .apply()
+
+    /** Where the trackpad panel was left. -1 means "not placed yet". */
+    var panelX: Int
+        get() = prefs.getInt(KEY_PANEL_X, UNSET)
+        set(value) = prefs.edit().putInt(KEY_PANEL_X, value).apply()
+
+    var panelY: Int
+        get() = prefs.getInt(KEY_PANEL_Y, UNSET)
+        set(value) = prefs.edit().putInt(KEY_PANEL_Y, value).apply()
+
+    /** The spot the bubble always springs back to. -1 means "not placed yet". */
+    var bubbleHomeX: Int
+        get() = prefs.getInt(KEY_BUBBLE_X, UNSET)
+        set(value) = prefs.edit().putInt(KEY_BUBBLE_X, value).apply()
+
+    var bubbleHomeY: Int
+        get() = prefs.getInt(KEY_BUBBLE_Y, UNSET)
+        set(value) = prefs.edit().putInt(KEY_BUBBLE_Y, value).apply()
 
     companion object {
         private const val NAME = "mouse_settings"
+        private const val KEY_PAD_MODE = "pad_mode"
         private const val KEY_BLOCKER_ENABLED = "blocker_enabled"
         private const val KEY_BLOCKER_FRACTION = "blocker_fraction"
         private const val KEY_SENSITIVITY = "sensitivity"
-        private const val KEY_CLICK_ON_RELEASE = "click_on_release"
+        private const val KEY_OPACITY = "overlay_opacity"
+        private const val KEY_PANEL_X = "panel_x"
+        private const val KEY_PANEL_Y = "panel_y"
+        private const val KEY_BUBBLE_X = "bubble_home_x"
+        private const val KEY_BUBBLE_Y = "bubble_home_y"
+
+        const val UNSET = -1
 
         const val DEFAULT_BLOCKER_FRACTION = 0.60f
         const val MIN_BLOCKER_FRACTION = 0.10f
@@ -49,5 +93,14 @@ class Prefs(context: Context) {
         const val DEFAULT_SENSITIVITY = 1.6f
         const val MIN_SENSITIVITY = 0.5f
         const val MAX_SENSITIVITY = 4.0f
+
+        const val DEFAULT_OPACITY = 0.75f
+        const val MIN_OPACITY = 0.25f
+
+        /**
+         * Android discards touches that pass through an untrusted overlay above this opacity, and
+         * that includes the taps this app injects, so the overlays are never allowed past it.
+         */
+        const val MAX_OPACITY = 0.8f
     }
 }

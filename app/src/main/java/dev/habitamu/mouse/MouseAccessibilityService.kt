@@ -6,6 +6,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.Path
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
@@ -58,13 +59,51 @@ class MouseAccessibilityService : AccessibilityService() {
         dispatch(singleStroke(pointPath(x, y), duration), onFinished)
     }
 
-    /** Press at the first point, slide to the second, release - used for dragging and swiping. */
-    fun drag(fromX: Float, fromY: Float, toX: Float, toY: Float, onFinished: (Boolean) -> Unit) {
-        val path = Path().apply {
+    /**
+     * Press at the first point, slide to the second, release.
+     *
+     * With [hold] the press dwells long enough to register as a long press before the slide, which
+     * is what picking an icon up needs; without it the gesture reads as a swipe, which is what
+     * scrolling needs. A dwelling drag has to be dispatched as two chained gestures, because a
+     * continued stroke may only be sent after the gesture holding the first half has completed.
+     */
+    fun drag(
+        fromX: Float,
+        fromY: Float,
+        toX: Float,
+        toY: Float,
+        hold: Boolean,
+        onFinished: (Boolean) -> Unit
+    ) {
+        val slide = Path().apply {
             moveTo(fromX, fromY)
             lineTo(toX, toY)
         }
-        dispatch(singleStroke(path, DRAG_DURATION_MS), onFinished)
+        if (!hold || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            dispatch(singleStroke(slide, DRAG_DURATION_MS), onFinished)
+            return
+        }
+
+        val press = GestureDescription.StrokeDescription(
+            pointPath(fromX, fromY),
+            0L,
+            DRAG_HOLD_MS,
+            true
+        )
+        dispatch(GestureDescription.Builder().addStroke(press).build()) { pressed ->
+            if (!pressed) {
+                onFinished(false)
+                return@dispatch
+            }
+            // A continued stroke has to start where the previous one ended, which is the far
+            // corner of the one pixel press path.
+            val continued = Path().apply {
+                moveTo(fromX + 1f, fromY + 1f)
+                lineTo(toX, toY)
+            }
+            val move = press.continueStroke(continued, 0L, DRAG_DURATION_MS, false)
+            dispatch(GestureDescription.Builder().addStroke(move).build(), onFinished)
+        }
     }
 
     /** Back / Home / Recents and friends - see [AccessibilityService.GLOBAL_ACTION_BACK]. */
@@ -111,6 +150,9 @@ class MouseAccessibilityService : AccessibilityService() {
 
         private const val TAP_DURATION_MS = 60L
         private const val DRAG_DURATION_MS = 400L
+
+        /** Long enough that the target treats the press as a long press before the slide. */
+        private const val DRAG_HOLD_MS = 700L
         private const val LONG_PRESS_MARGIN_MS = 250L
 
         @Volatile

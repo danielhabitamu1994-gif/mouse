@@ -20,6 +20,9 @@ import kotlin.math.roundToInt
 /**
  * Setup and settings. Every control here is deliberately in the lower half of the screen, since
  * the whole point of the app is that the top of the screen may not respond to touch.
+ *
+ * While this screen is in front, the blocker draws its outline so the blocked area can be seen
+ * and adjusted. It stops as soon as the screen goes away.
  */
 class MainActivity : AppCompatActivity() {
 
@@ -56,13 +59,17 @@ class MainActivity : AppCompatActivity() {
             if (OverlayService.isRunning) stopOverlays() else startOverlays()
         }
 
-        binding.switchBlocker.setOnCheckedChangeListener { _, checked ->
-            prefs.blockerEnabled = checked
+        binding.radioMode.setOnCheckedChangeListener { _, checkedId ->
+            prefs.padMode =
+                if (checkedId == R.id.radio_bubble) PadMode.BUBBLE else PadMode.TRACKPAD
             pushSettings()
+            refreshUi()
         }
 
-        binding.switchClickOnRelease.setOnCheckedChangeListener { _, checked ->
-            prefs.clickOnRelease = checked
+        binding.btnPlaceBubble.setOnClickListener { OverlayService.placeBubble(this) }
+
+        binding.switchBlocker.setOnCheckedChangeListener { _, checked ->
+            prefs.blockerEnabled = checked
             pushSettings()
         }
 
@@ -78,13 +85,26 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
-        binding.seekSensitivity.max = SENSITIVITY_STEPS
+        binding.seekSensitivity.max = SLIDER_STEPS
         binding.seekSensitivity.setOnSeekBarChangeListener(object : SimpleSeekBarListener() {
             override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
-                val sensitivity = sensitivityOf(progress)
+                val sensitivity = scale(progress, Prefs.MIN_SENSITIVITY, Prefs.MAX_SENSITIVITY)
                 binding.valueSensitivity.text = getString(R.string.value_multiplier, sensitivity)
                 if (fromUser) {
                     prefs.sensitivity = sensitivity
+                    pushSettings()
+                }
+            }
+        })
+
+        binding.seekOpacity.max = SLIDER_STEPS
+        binding.seekOpacity.setOnSeekBarChangeListener(object : SimpleSeekBarListener() {
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                val opacity = scale(progress, Prefs.MIN_OPACITY, Prefs.MAX_OPACITY)
+                binding.valueOpacity.text =
+                    getString(R.string.value_opacity, (opacity * 100).roundToInt())
+                if (fromUser) {
+                    prefs.overlayOpacity = opacity
                     pushSettings()
                 }
             }
@@ -114,6 +134,12 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         loadSettingsIntoUi()
         refreshUi()
+        OverlayService.setPreview(this, true)
+    }
+
+    override fun onPause() {
+        OverlayService.setPreview(this, false)
+        super.onPause()
     }
 
     private fun startOverlays() {
@@ -133,7 +159,10 @@ class MainActivity : AppCompatActivity() {
             requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
         OverlayService.start(this)
-        binding.btnToggleService.postDelayed(::refreshUi, STATE_SETTLE_MS)
+        binding.btnToggleService.postDelayed({
+            refreshUi()
+            OverlayService.setPreview(this, true)
+        }, STATE_SETTLE_MS)
     }
 
     private fun stopOverlays() {
@@ -147,13 +176,22 @@ class MainActivity : AppCompatActivity() {
 
     private fun loadSettingsIntoUi() {
         binding.switchBlocker.isChecked = prefs.blockerEnabled
-        binding.switchClickOnRelease.isChecked = prefs.clickOnRelease
+        binding.radioMode.check(
+            if (prefs.padMode == PadMode.BUBBLE) R.id.radio_bubble else R.id.radio_trackpad
+        )
+
         val coveragePercent = (prefs.blockerFraction * 100).roundToInt()
         binding.seekCoverage.progress = coveragePercent - COVERAGE_MIN_PERCENT
-        binding.seekSensitivity.progress = progressOf(prefs.sensitivity)
+        binding.seekSensitivity.progress =
+            progressOf(prefs.sensitivity, Prefs.MIN_SENSITIVITY, Prefs.MAX_SENSITIVITY)
+        binding.seekOpacity.progress =
+            progressOf(prefs.overlayOpacity, Prefs.MIN_OPACITY, Prefs.MAX_OPACITY)
+
         // Setting a progress that is already current fires no callback, so label the values here.
         binding.valueCoverage.text = getString(R.string.value_percent, coveragePercent)
         binding.valueSensitivity.text = getString(R.string.value_multiplier, prefs.sensitivity)
+        binding.valueOpacity.text =
+            getString(R.string.value_opacity, (prefs.overlayOpacity * 100).roundToInt())
     }
 
     private fun refreshUi() {
@@ -172,15 +210,14 @@ class MainActivity : AppCompatActivity() {
         binding.statusService.setText(
             if (running) R.string.status_service_running else R.string.status_service_stopped
         )
+        binding.btnPlaceBubble.isEnabled = running && prefs.padMode == PadMode.BUBBLE
     }
 
-    private fun sensitivityOf(progress: Int): Float =
-        Prefs.MIN_SENSITIVITY +
-            (Prefs.MAX_SENSITIVITY - Prefs.MIN_SENSITIVITY) * progress / SENSITIVITY_STEPS
+    private fun scale(progress: Int, min: Float, max: Float): Float =
+        min + (max - min) * progress / SLIDER_STEPS
 
-    private fun progressOf(sensitivity: Float): Int =
-        ((sensitivity - Prefs.MIN_SENSITIVITY) /
-            (Prefs.MAX_SENSITIVITY - Prefs.MIN_SENSITIVITY) * SENSITIVITY_STEPS).roundToInt()
+    private fun progressOf(value: Float, min: Float, max: Float): Int =
+        ((value - min) / (max - min) * SLIDER_STEPS).roundToInt()
 
     /** Saves implementing the two callbacks nobody needs on every slider. */
     private abstract class SimpleSeekBarListener : SeekBar.OnSeekBarChangeListener {
@@ -191,7 +228,7 @@ class MainActivity : AppCompatActivity() {
     private companion object {
         const val COVERAGE_MIN_PERCENT = 10
         const val COVERAGE_MAX_PERCENT = 95
-        const val SENSITIVITY_STEPS = 100
+        const val SLIDER_STEPS = 100
         const val STATE_SETTLE_MS = 350L
     }
 }

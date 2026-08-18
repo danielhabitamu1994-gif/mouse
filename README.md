@@ -11,14 +11,34 @@ Three overlay windows and one accessibility service:
 | Piece | File | Job |
 | --- | --- | --- |
 | Blocker | `BlockerView.kt` | Transparent window over the top of the screen. `onTouchEvent` returns `true`, so every ghost touch inside it dies there instead of reaching the app below. |
-| Cursor | `CursorView.kt` | Small untouchable window drawn at the virtual pointer. Its centre is the hot spot that gets clicked. |
-| Trackpad | `TrackpadPanel.kt` + `res/layout/overlay_trackpad.xml` | Draggable panel, parked bottom right. Finger movement becomes relative cursor movement. |
+| Cursor | `CursorView.kt` | Small untouchable window drawn at the virtual pointer. Its tip is the hot spot that gets clicked. |
+| Control | `TrackpadPanel.kt` + `res/layout/overlay_trackpad.xml` | The floating control, in either shape: a full panel, or a bubble on its own. |
+| Gestures | `PointerGestureDetector.kt` | Turns finger movement into tap, hold, drag and cursor movement. |
 | Input | `MouseAccessibilityService.kt` | `dispatchGesture` for tap / long press / drag, `performGlobalAction` for Back, Home and Recents. |
 
 `OverlayService.kt` is the foreground service that owns the windows, holds the cursor position and
-wires the trackpad to the accessibility service through the `MouseController` interface.
+wires the control to the accessibility service through the `MouseController` interface.
 
-### Two details that are easy to get wrong
+### Two shapes for the control
+
+- **Trackpad panel** - a pad area plus Back, Home and Apps, dragged around by its header and
+  collapsed to a puck with `−`. It opens away from whichever screen edge it is parked against, so
+  a puck in the bottom right expands to the left and upwards.
+- **Bubble only** - nothing but the puck. It follows your finger and the cursor moves with it;
+  when you let go the bubble slides back to its home spot while the cursor stays where you left
+  it, so the screen can be crossed in several strokes. The home spot is chosen from the settings
+  screen: press "Choose where the bubble sits", drag the bubble, and let go.
+
+### Gestures, in either shape
+
+| Gesture | Result |
+| --- | --- |
+| Slide | The cursor moves. Lifting your finger does **not** tap. |
+| Tap without sliding | Click where the cursor is. |
+| Double tap, release | Long press at the cursor. |
+| Double tap, then slide without lifting | Drag from the cursor. Slide straight away for a swipe (scrolling); rest a moment first and the drag presses and holds before moving, which is what picking an icon up needs. |
+
+### Three details that are easy to get wrong
 
 **Injected gestures hit our own overlays.** `dispatchGesture` goes through the normal input
 pipeline, so a tap dispatched at the cursor lands on whichever window is topmost at that point -
@@ -27,10 +47,17 @@ overlays that the gesture actually passes through, and restores them from the ge
 (with a timeout as a safety net, so the screen can never be left permanently unblocked). Overlays
 that are not in the path stay touchable, so a finger still resting on the trackpad keeps working.
 
+There is a second half to that: a window flag change only reaches the window manager on the next
+frames, so the gesture is injected a beat after the overlays are opened rather than in the same
+breath, or it would race the flag and land on the overlay it was meant to pass through.
+
 **Window opacity.** Since Android 12 the platform discards touches that pass through an untrusted
-overlay above a certain opacity. The blocker and cursor windows are therefore given a window alpha
-below that threshold (`0.5` and `0.75`), which is why the blocked region is drawn as an outline
-with a light wash rather than a solid fill.
+overlay above a certain opacity. Every overlay is therefore kept below that threshold, and the
+opacity slider in the app is capped at 80% for the same reason.
+
+**The blocker is invisible in normal use.** Its dashed outline, wash and label are drawn only
+while the settings screen is in front, so the blocked area can be seen while it is being adjusted
+and nothing marks the screen afterwards. It still swallows touches either way.
 
 ## Permissions
 
@@ -46,19 +73,12 @@ nothing else, and never reads what is on screen.
 ## Using it
 
 1. Open the app, grant "draw over other apps", then turn on the Mouse accessibility service.
-2. Set how much of the screen to block (default: the top 60%) and the cursor speed.
-3. Press **Start**.
+2. Set how much of the screen to block (default: the top 60%), the cursor speed and the opacity.
 
-On the trackpad:
+3. Pick the control you want - trackpad panel or bubble only - and press **Start**.
 
-- Slide to move the cursor; lift to tap where it ended up.
-- Hold to long press at the cursor.
-- **Move** mode (the `Tap` / `Move` button) stops a lift from tapping, for repositioning only.
-- **Drag** marks the cursor position as a start point; move and lift to drag from there.
-- **Back**, **Home** and **Apps** are global actions, useful when the navigation area is dead.
-- The header bar drags the panel around; `−` shrinks it to a puck, tap the puck to bring it back.
-
-The notification carries a blocker toggle and a stop button.
+**Back**, **Home** and **Apps** on the panel are global actions, useful when the navigation area
+is dead. The notification carries a blocker toggle and a stop button.
 
 ## Building
 

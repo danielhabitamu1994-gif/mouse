@@ -17,9 +17,9 @@ import android.view.View
  * everything else in that region and returns true from [onTouchEvent], so those touches are
  * consumed here instead of reaching the app underneath.
  *
- * The region is outlined rather than filled: the window is drawn at partial alpha (see
- * [OverlayService]) so that Android never counts it as obscuring the windows below, which would
- * make the platform discard the taps we inject.
+ * It draws nothing at all unless [showOutline] is set, which only happens while the settings
+ * screen is open: the outline is there to show what is being adjusted, not to sit on top of
+ * everything the user does afterwards.
  */
 @SuppressLint("ViewConstructor", "ClickableViewAccessibility")
 class BlockerView(context: Context) : View(context) {
@@ -46,11 +46,21 @@ class BlockerView(context: Context) : View(context) {
     private val bounds = RectF()
     private val labelBounds = RectF()
 
-    /** Every touch that lands in this window dies here. */
+    /** Show the dashed edge, the wash and the label. Off outside the settings screen. */
+    var showOutline: Boolean = false
+        set(value) {
+            if (field != value) {
+                field = value
+                invalidate()
+            }
+        }
+
+    /** Every touch that lands in this window dies here, outline or not. */
     override fun onTouchEvent(event: MotionEvent): Boolean = true
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
+        if (!showOutline) return
 
         val inset = edge.strokeWidth / 2f
         bounds.set(inset, inset, width - inset, height - inset)

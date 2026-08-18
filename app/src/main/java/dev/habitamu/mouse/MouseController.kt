@@ -1,8 +1,8 @@
 package dev.habitamu.mouse
 
 /**
- * What the trackpad is allowed to ask for. Implemented by [OverlayService], which owns the
- * cursor position, the windows, and the connection to the accessibility service.
+ * What the floating control is allowed to ask for. Implemented by [OverlayService], which owns
+ * the cursor position, the windows, and the connection to the accessibility service.
  */
 interface MouseController {
 
@@ -15,26 +15,30 @@ interface MouseController {
 
     fun longClickAtCursor()
 
-    /** Remember the cursor position as the start of a drag. */
-    fun armDrag()
+    /**
+     * Start a drag where the cursor is. [withHold] presses and holds before moving, for picking
+     * something up; without it the gesture is a swipe, for scrolling.
+     */
+    fun beginDrag(withHold: Boolean)
 
-    fun cancelDrag()
-
-    /** Drag from the armed anchor to wherever the cursor is now. */
-    fun finishDragAtCursor()
-
-    fun isDragArmed(): Boolean
+    fun endDrag()
 
     /** See AccessibilityService.GLOBAL_ACTION_* constants. */
     fun globalAction(action: Int)
 
-    /** Move the trackpad window itself. */
-    fun moveTrackpadBy(dx: Float, dy: Float)
+    /** Move the floating window itself. */
+    fun movePadBy(dx: Float, dy: Float)
 
-    /** The trackpad changed size (collapsed or expanded); keep it on screen. */
-    fun onTrackpadResized()
+    /** The user let go of the window after dragging it. */
+    fun onPadReleased()
+
+    /** The panel is about to change size; reposition it so its anchored corner stays put. */
+    fun onPadResized()
 
     fun toggleBlocker()
 
     fun isBlockerEnabled(): Boolean
+
+    /** True while the user is choosing where the bubble lives. */
+    fun isPlacingBubble(): Boolean
 }
