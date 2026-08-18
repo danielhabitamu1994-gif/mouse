@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Mouse</string>
+
+    <string name="intro">Blocks touches from a damaged part of the screen and gives you a
+        trackpad and an on-screen cursor to drive the phone with instead.</string>
+
+    <string name="setup_heading">Setup</string>
+    <string name="step_overlay">1. Allow drawing over other apps, so the blocker, cursor and
+        trackpad can sit above whatever you are using.</string>
+    <string name="step_accessibility">2. Turn on the Mouse accessibility service, so the cursor
+        can actually tap things. Find it under Settings &#8250; Accessibility &#8250; Mouse.</string>
+
+    <string name="settings_heading">Settings</string>
+    <string name="setting_blocker">Block touches in the damaged area</string>
+    <string name="setting_coverage">Blocked area, measured from the top of the screen</string>
+    <string name="setting_sensitivity">Cursor speed</string>
+    <string name="setting_click_on_release">Tap when I lift my finger off the trackpad</string>
+
+    <string name="status_granted">Granted</string>
+    <string name="status_missing">Not granted yet</string>
+    <string name="status_service_running">Overlays are running</string>
+    <string name="status_service_stopped">Overlays are stopped</string>
+
+    <string name="action_grant_overlay">Allow drawing over other apps</string>
+    <string name="action_open_accessibility">Open accessibility settings</string>
+    <string name="action_start">Start</string>
+    <string name="action_stop">Stop</string>
+    <string name="action_blocker_on">Block touches</string>
+    <string name="action_blocker_off">Unblock touches</string>
+
+    <string name="value_percent">Top %1$d%% of the screen</string>
+    <string name="value_multiplier">%1$.1f×</string>
+
+    <string name="usage_help">On the trackpad: slide to move the cursor, lift to tap, hold to
+        long press. DRAG marks a start point, then move and lift to drag from it. The header bar
+        moves the panel and the − button shrinks it to a puck.</string>
+
+    <string name="blocker_watermark">TOUCH BLOCKED</string>
+
+    <string name="pad_title">Mouse</string>
+    <string name="pad_puck">🖱</string>
+    <string name="pad_collapse">−</string>
+    <string name="pad_collapse_description">Shrink the trackpad</string>
+    <string name="pad_mode_tap">Tap</string>
+    <string name="pad_mode_move">Move</string>
+    <string name="pad_long_press">Hold</string>
+    <string name="pad_drag">Drag</string>
+    <string name="pad_blocker_on">Blocking</string>
+    <string name="pad_blocker_off">Off</string>
+    <string name="pad_back">Back</string>
+    <string name="pad_home">Home</string>
+    <string name="pad_recents">Apps</string>
+
+    <string name="pad_hint_tap">Slide to move · lift to tap · hold to long press</string>
+    <string name="pad_hint_move">Move only — lifting will not tap</string>
+    <string name="pad_hint_drag">Drag armed — move, then lift to drop</string>
+
+    <string name="hint_drag_armed">Drag starts at the cursor. Move, then lift to drop.</string>
+
+    <string name="error_overlay_permission">Mouse needs permission to draw over other apps.</string>
+    <string name="error_accessibility_off">Turn on the Mouse accessibility service first.</string>
+    <string name="error_gesture_failed">That tap could not be delivered.</string>
+
+    <string name="notification_channel_name">Mouse overlays</string>
+    <string name="notification_channel_description">Shown while the cursor and touch blocker are
+        active.</string>
+    <string name="notification_title">Mouse is running</string>
+    <string name="notification_text_blocking">Touches in the damaged area are blocked.</string>
+    <string name="notification_text_idle">Touch blocking is off.</string>
+
+    <string name="accessibility_service_label">Mouse</string>
+    <string name="accessibility_service_description">Lets Mouse tap, long press and drag where you
+        put the on-screen cursor, and use Back, Home and Recents from the floating trackpad. Mouse
+        does not read screen content.</string>
+</resources>
