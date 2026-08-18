@@ -14,10 +14,11 @@
     <string name="mode_bubble">Bubble only</string>
     <string name="mode_bubble_detail">The bubble follows your finger and the cursor moves with it.
         Let go and the bubble slides back to its spot, while the cursor stays where you left it, so
-        you can cross the screen in several strokes. Triple tap the bubble to switch it off: it
-        fades and stops taking touches altogether, so edge swipes and everything behind it work
-        normally. Press volume up and down together to bring it back, or to switch it off without
-        reaching for it. It also lifts itself above the keyboard while one is open.</string>
+        you can cross the screen in several strokes. The bubble shows the time. Triple tap it to
+        switch it off: it disappears completely, along with the cursor, so edge swipes and
+        everything behind it work normally. Press volume up and down together to bring it back, or
+        to switch it off without reaching for it. It also lifts itself above the keyboard while one
+        is open.</string>
     <string name="action_place_bubble">Choose where the bubble sits</string>
 
     <string name="blocker_heading">Touch blocker</string>
@@ -57,8 +58,8 @@
     <string name="usage_help">Slide to move the cursor — lifting your finger does not tap.\nTap
         without sliding to click where the cursor is.\nDouble tap and release to long press.\nDouble
         tap and, without lifting, slide to drag: slide straight away to scroll, or rest a moment
-        first to pick something up. The page follows your finger as you drag.\nTriple tap the bubble
-        to switch it off; volume up + down together switches it off or back on.</string>
+        first to pick something up.\nTriple tap the bubble to switch it off; volume up + down
+        together switches it off or back on.</string>
 
     <string name="blocker_watermark">TOUCH BLOCKED</string>
 
@@ -74,7 +75,7 @@
     <string name="pad_hint">Slide to move · tap to click · double tap to hold</string>
 
     <string name="hint_place_bubble">Drag the bubble where you want it and let go.</string>
-    <string name="hint_control_off">Bubble off. Volume up + down together brings it back.</string>
+    <string name="hint_control_off">Hidden. Volume up + down together brings it back.</string>
     <string name="hint_control_on">Bubble on.</string>
     <string name="hint_bubble_placed">The bubble will come back here from now on.</string>
 

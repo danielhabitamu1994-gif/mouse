@@ -6,8 +6,10 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.content.res.Configuration
 import android.graphics.PixelFormat
@@ -26,6 +28,7 @@ import android.view.animation.DecelerateInterpolator
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
+import androidx.core.content.ContextCompat
 
 /**
  * Owns the three overlay windows and the virtual cursor.
@@ -66,10 +69,14 @@ class OverlayService : Service(), MouseController {
     private var lastMode = PadMode.TRACKPAD
     private var keyboardHeight = 0
     private var controlActive = true
-    private var streamingDrag = false
-    private var pendingStreamStart: Runnable? = null
 
     private val restoreBlocking = Runnable { restoreTouchBlocking() }
+
+    private val clockReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            trackpad?.updateClock()
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -77,6 +84,18 @@ class OverlayService : Service(), MouseController {
         createNotificationChannel()
         MouseAccessibilityService.keyboardListener = { top -> onKeyboardTopChanged(top) }
         MouseAccessibilityService.shortcutListener = { setControlActive(!controlActive) }
+        // ACTION_TIME_TICK arrives every minute, which is exactly how often the bubble's clock
+        // needs redrawing. It is only ever sent to receivers registered in code, never manifest
+        // ones, so this is the one place it can be picked up.
+        ContextCompat.registerReceiver(
+            this,
+            clockReceiver,
+            IntentFilter(Intent.ACTION_TIME_TICK).apply {
+                addAction(Intent.ACTION_TIME_CHANGED)
+                addAction(Intent.ACTION_TIMEZONE_CHANGED)
+            },
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
         isRunning = true
         broadcastState()
     }
@@ -128,7 +147,7 @@ class OverlayService : Service(), MouseController {
         broadcastState()
         MouseAccessibilityService.keyboardListener = null
         MouseAccessibilityService.shortcutListener = null
-        MouseAccessibilityService.instance?.cancelDragStream()
+        unregisterReceiver(clockReceiver)
         springBack?.cancel()
         handler.removeCallbacksAndMessages(null)
         removeOverlays()
@@ -279,8 +298,7 @@ class OverlayService : Service(), MouseController {
         }
         padParams?.let { params ->
             params.alpha = when {
-                padTransparent -> 0f
-                !controlActive -> Prefs.DIMMED_OPACITY
+                padTransparent || !controlActive -> 0f
                 else -> settings.controlOpacity
             }
             trackpad?.root?.let { safeUpdate(it, params) }
@@ -292,11 +310,13 @@ class OverlayService : Service(), MouseController {
     override fun setControlActive(active: Boolean) {
         if (controlActive == active) return
         controlActive = active
-        // Off means untouchable, so whatever is behind the bubble - including the system's edge
-        // gestures - works normally. That is also why only the volume shortcut can switch it back
-        // on: with the window deaf to touches, nothing on screen could hear a triple tap.
+        // Off means gone: untouchable, so whatever is behind it - including the system's edge
+        // gestures - works normally, and invisible, so nothing is left on screen. That is also
+        // why only the volume shortcut can switch it back on; there is nothing left to tap.
         padParams?.let { it.flags = withTouchable(it.flags, active) }
+        trackpad?.root?.visibility = if (active) View.VISIBLE else View.INVISIBLE
         applyOpacity()
+        if (active) wakeCursor() else hideCursorNow()
         toast(getString(if (active) R.string.hint_control_on else R.string.hint_control_off))
     }
 
@@ -558,14 +578,18 @@ class OverlayService : Service(), MouseController {
         cursorY = (cursorY + dy).coerceIn(0f, (screenHeight - 2).coerceAtLeast(0).toFloat())
         updateCursorWindow()
         wakeCursor()
-        // A drag in progress follows the cursor, so the app scrolls while the finger still moves.
-        if (streamingDrag) MouseAccessibilityService.instance?.moveDragStream(cursorX, cursorY)
     }
 
     private val hideCursor = Runnable { cursorView?.visibility = View.INVISIBLE }
 
+    private fun hideCursorNow() {
+        handler.removeCallbacks(hideCursor)
+        cursorView?.visibility = View.INVISIBLE
+    }
+
     override fun wakeCursor() {
         val view = cursorView ?: return
+        if (!controlActive) return
         view.visibility = View.VISIBLE
         handler.removeCallbacks(hideCursor)
         val seconds = settings.cursorHideSeconds
@@ -602,25 +626,6 @@ class OverlayService : Service(), MouseController {
         dragHolds = withHold
         cursorView?.gestureInFlight = true
         wakeCursor()
-
-        val service = MouseAccessibilityService.instance ?: return
-        if (!service.canStreamDrag()) return
-
-        val x = cursorX
-        val y = cursorY
-        handler.removeCallbacks(restoreBlocking)
-        openPathFor(x, y, x, y)
-        // Held back a beat like every other injection, so the cleared overlays have reached the
-        // window manager before the press lands.
-        val start = Runnable {
-            pendingStreamStart = null
-            streamingDrag = service.startDragStream(x, y, withHold)
-        }
-        pendingStreamStart = start
-        handler.postDelayed(start, INJECTION_SETTLE_MS)
-        // Which window a gesture belongs to is settled when it starts, so the overlays can come
-        // back as soon as the press has landed and the rest of the drag still goes to the app.
-        handler.postDelayed(restoreBlocking, INJECTION_SETTLE_MS + STREAM_OPEN_MS)
     }
 
     override fun endDrag() {
@@ -628,21 +633,6 @@ class OverlayService : Service(), MouseController {
         dragAnchor = null
         val x = cursorX
         val y = cursorY
-
-        // A flick shorter than the settle delay ends before the stream ever starts.
-        pendingStreamStart?.let {
-            handler.removeCallbacks(it)
-            pendingStreamStart = null
-        }
-
-        if (streamingDrag) {
-            streamingDrag = false
-            cursorView?.gestureInFlight = false
-            MouseAccessibilityService.instance?.endDragStream(x, y)
-            return
-        }
-
-        // Nothing streaming: send the whole drag now that the finger is up.
         withInjectionPassthrough(anchor.x, anchor.y, x, y) { service, done ->
             service.drag(anchor.x, anchor.y, x, y, dragHolds) { delivered ->
                 onGestureFinished(delivered, done)
@@ -816,9 +806,6 @@ class OverlayService : Service(), MouseController {
         /** Long enough for the cleared flags and opacities to reach the window manager. */
         private const val INJECTION_SETTLE_MS = 80L
         private const val PASSTHROUGH_TAIL_MS = 60L
-
-        /** How long the overlays stay out of the way once a live drag has pressed down. */
-        private const val STREAM_OPEN_MS = 200L
         private const val ROTATION_SETTLE_MS = 300L
 
         private const val SPRING_BACK_MS = 180L

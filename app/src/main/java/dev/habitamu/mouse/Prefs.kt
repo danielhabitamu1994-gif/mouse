@@ -128,8 +128,6 @@ class Prefs(context: Context) {
         const val DEFAULT_OPACITY = 0.75f
         const val MIN_OPACITY = 0.2f
 
-        /** What a bubble that has been switched off with a triple tap fades to. */
-        const val DIMMED_OPACITY = 0.25f
 
         /**
          * Full opacity is safe: every overlay in the path of an injected gesture is made

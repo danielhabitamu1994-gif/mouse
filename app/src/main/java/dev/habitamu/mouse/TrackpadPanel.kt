@@ -7,8 +7,12 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
+import android.text.format.DateFormat
 import android.widget.Button
 import android.widget.TextView
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.hypot
 import kotlin.math.min
@@ -34,6 +38,12 @@ class TrackpadPanel(context: Context, private val controller: MouseController) :
     private val pad: View = root.findViewById(R.id.pad)
     private val padHint: TextView = root.findViewById(R.id.pad_hint)
     private val blockerButton: Button = root.findViewById(R.id.btn_blocker)
+    private val puckClock: TextView = root.findViewById(R.id.puck_clock)
+
+    private val clockFormat = SimpleDateFormat(
+        if (DateFormat.is24HourFormat(context)) "HH:mm" else "h:mm",
+        Locale.getDefault()
+    )
 
     private val detector = PointerGestureDetector(context, this)
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
@@ -59,6 +69,11 @@ class TrackpadPanel(context: Context, private val controller: MouseController) :
     }
 
     fun release() = detector.release()
+
+    /** The bubble doubles as a clock; the service calls this every minute. */
+    fun updateClock() {
+        puckClock.text = clockFormat.format(Date())
+    }
 
     /** Refresh every label that mirrors state owned elsewhere. */
     fun syncState() {
@@ -237,6 +252,7 @@ class TrackpadPanel(context: Context, private val controller: MouseController) :
             controller.globalAction(AccessibilityService.GLOBAL_ACTION_RECENTS)
         }
 
+        updateClock()
         applyMode(controller.settings.padMode)
     }
 

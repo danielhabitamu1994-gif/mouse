@@ -24,7 +24,7 @@ wires the control to the accessibility service through the `MouseController` int
 - **Trackpad panel** - a pad area plus Back, Home and Apps, dragged around by its header and
   collapsed to a puck with `−`. It opens away from whichever screen edge it is parked against, so
   a puck in the bottom right expands to the left and upwards.
-- **Bubble only** - nothing but the puck. It follows your finger and the cursor moves with it;
+- **Bubble only** - nothing but the puck, which doubles as a clock. It follows your finger and the cursor moves with it;
   when you let go the bubble slides back to its home spot while the cursor stays where you left
   it, so the screen can be crossed in several strokes. The home spot is chosen from the settings
   screen: press "Choose where the bubble sits", drag the bubble, and let go.
@@ -43,18 +43,12 @@ and nothing else - no screen text is ever fetched.
 | Tap without sliding | Click where the cursor is. |
 | Double tap, release | Long press at the cursor. |
 | Double tap, then slide without lifting | Drag from the cursor. Slide straight away for a swipe (scrolling); rest a moment first and the drag presses and holds before moving, which is what picking an icon up needs. |
-| Triple tap (bubble only) | Switches the bubble off: it fades to a quarter and stops taking touches at all, so edge swipes and everything behind it work normally. |
+| Triple tap (bubble only) | Switches the bubble off: it disappears entirely, cursor included, and stops taking touches, so edge swipes and everything behind it work normally. |
 | Volume up + down together | Switches the bubble off or back on. The only way back, since a switched-off bubble cannot hear a tap. |
 
 The triple tap costs the bubble a double-tap timeout of delay on its click and long press, since
 both have to wait and see whether another tap is coming. The panel does not have the triple tap
 and so does not pay for it.
-
-A drag is streamed rather than sent in one piece: the press goes down when the drag starts and is
-extended towards the cursor every 50ms with `StrokeDescription.continueStroke`, so the page moves
-while the finger is still moving instead of jumping once it is lifted. It runs about a segment
-behind the finger. Devices older than Oreo have no continued strokes, and fall back to sending the
-whole drag on release.
 
 The cursor hides itself after a few seconds of stillness - adjustable, including never - and comes
 back the moment anything moves it.
