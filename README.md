@@ -51,9 +51,13 @@ There is a second half to that: a window flag change only reaches the window man
 frames, so the gesture is injected a beat after the overlays are opened rather than in the same
 breath, or it would race the flag and land on the overlay it was meant to pass through.
 
-**Window opacity.** Since Android 12 the platform discards touches that pass through an untrusted
-overlay above a certain opacity. Every overlay is therefore kept below that threshold, and the
-opacity slider in the app is capped at 80% for the same reason.
+**Window opacity, and it adds up.** Since Android 12 the platform discards a touch that passes
+through untrusted overlays whose opacity goes above 0.8 - and overlays from the same app are
+combined, not measured one by one. The blocker at 0.5 with the cursor sitting right on the target
+came to 0.875, which is why taps inside the blocked area went nowhere while taps outside it, with
+only the cursor above them, worked. So the overlays in the path of a gesture are made fully
+transparent for its duration as well as untouchable; the cursor blinking as it clicks is that.
+The opacity slider is capped at 80% for the same reason.
 
 **The blocker is invisible in normal use.** Its dashed outline, wash and label are drawn only
 while the settings screen is in front, so the blocked area can be seen while it is being adjusted
@@ -86,7 +90,19 @@ is dead. The notification carries a blocker toggle and a stop button.
 ./gradlew assembleDebug
 ```
 
-Requires the Android SDK (compileSdk 34); minSdk is 24.
+Requires the Android SDK (compileSdk 34); minSdk is 24. Every push builds the APK on GitHub
+Actions and uploads it as a workflow artifact.
+
+### Signing
+
+Both build types are signed with `app/mouse-signing.jks`, which is committed alongside the code.
+Android refuses to install an update whose signature differs from the installed app, and a build
+machine with no key of its own generates a fresh debug key on every run - so without a fixed key,
+every CI build was a different app as far as the phone was concerned and updates failed.
+
+This is a sideloading key for a personal build, not a Play Store upload key, and anyone with the
+repository can sign with it. Swap it for a key held in a GitHub secret before distributing the app
+to anyone else.
 
 ## Limitations
 

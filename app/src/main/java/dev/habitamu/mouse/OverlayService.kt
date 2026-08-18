@@ -57,6 +57,9 @@ class OverlayService : Service(), MouseController {
 
     /** True while a synthetic gesture is passing through the blocked region. */
     private var blockerSuspended = false
+
+    /** True while a gesture is in flight and the overlays over it must not obscure it. */
+    private var injecting = false
     private var overlaysAdded = false
     private var placingBubble = false
     private var springBack: ValueAnimator? = null
@@ -165,7 +168,7 @@ class OverlayService : Service(), MouseController {
     }
 
     private fun addCursor() {
-        val size = dpInt(CURSOR_WINDOW_DP)
+        val size = cursorSizePx()
         val view = CursorView(this)
         val params = overlayParams(width = size, height = size, touchable = false)
         cursorView = view
@@ -220,6 +223,7 @@ class OverlayService : Service(), MouseController {
 
     private fun applySettings() {
         applyBlockerState()
+        applyCursorSize()
         applyOpacity()
 
         val mode = settings.padMode
@@ -233,17 +237,29 @@ class OverlayService : Service(), MouseController {
         updateNotification()
     }
 
-    private fun applyOpacity() {
-        val alpha = settings.overlayOpacity
+    private fun applyOpacity(padTransparent: Boolean = false) {
         cursorParams?.let { params ->
-            params.alpha = alpha
+            // The cursor sits exactly on the point being tapped, so it always has to step aside.
+            params.alpha = if (injecting) 0f else settings.overlayOpacity
             cursorView?.let { safeUpdate(it, params) }
         }
         padParams?.let { params ->
-            params.alpha = alpha
+            params.alpha = if (padTransparent) 0f else settings.overlayOpacity
             trackpad?.root?.let { safeUpdate(it, params) }
         }
     }
+
+    private fun applyCursorSize() {
+        val view = cursorView ?: return
+        val params = cursorParams ?: return
+        val size = cursorSizePx()
+        if (params.width == size) return
+        params.width = size
+        params.height = size
+        updateCursorWindow()
+    }
+
+    private fun cursorSizePx(): Int = dpInt(CURSOR_BASE_DP * settings.cursorScale)
 
     private fun applyBlockerState() {
         val view = blockerView ?: return
@@ -252,41 +268,45 @@ class OverlayService : Service(), MouseController {
         val armed = settings.blockerEnabled && !blockerSuspended
         params.height = blockerHeightPx()
         params.flags = withTouchable(params.flags, armed)
+        // Transparent while a gesture goes through it - see openPathFor.
+        params.alpha = if (blockerSuspended) 0f else BLOCKER_WINDOW_ALPHA
         view.visibility = if (settings.blockerEnabled) View.VISIBLE else View.GONE
         safeUpdate(view, params)
     }
 
     /**
-     * The accessibility service injects gestures into the normal input pipeline, so they land on
-     * whichever window is on top at that point - which would be our own overlays. Any overlay the
-     * gesture passes through is made untouchable for its duration and restored right after.
+     * Clears our own windows out of the way of a gesture we are about to inject.
      *
-     * Only the overlays actually under the gesture are opened up: leaving the pad touchable where
-     * it is not in the way keeps a finger that is still resting on it working, and keeps the
-     * blocked region blocked for everything except the tap we asked for.
+     * Two things have to happen, and missing either one loses the tap. The overlays under the
+     * gesture stop being touchable, or they swallow it. And they stop being visible, because
+     * Android discards a touch that passes through overlays whose combined opacity goes over
+     * 0.8 - the blocker at 0.5 plus the cursor sitting right on the target came to 0.875, which
+     * is why taps inside the blocked area went nowhere while taps outside it worked.
+     *
+     * Only the overlays actually in the path are cleared: leaving the pad alone where it is not
+     * in the way keeps a finger that is still resting on it working, and keeps the blocked
+     * region blocked for everything except the gesture we asked for.
      */
     private fun openPathFor(x1: Float, y1: Float, x2: Float, y2: Float) {
+        injecting = true
         blockerSuspended = y1 < blockerHeightPx() || y2 < blockerHeightPx()
         applyBlockerState()
 
-        val panel = trackpad?.root
-        val params = padParams
-        if (panel != null && params != null && (overPad(x1, y1) || overPad(x2, y2))) {
-            params.flags = withTouchable(params.flags, false)
-            safeUpdate(panel, params)
+        val padInTheWay = overPad(x1, y1) || overPad(x2, y2)
+        if (padInTheWay) {
+            padParams?.let { it.flags = withTouchable(it.flags, false) }
         }
+        // applyOpacity pushes both the alpha and the flag change above in one window update.
+        applyOpacity(padTransparent = padInTheWay)
     }
 
     private fun restoreTouchBlocking() {
+        injecting = false
         blockerSuspended = false
         applyBlockerState()
 
-        val panel = trackpad?.root
-        val params = padParams
-        if (panel != null && params != null) {
-            params.flags = withTouchable(params.flags, true)
-            safeUpdate(panel, params)
-        }
+        padParams?.let { it.flags = withTouchable(it.flags, true) }
+        applyOpacity()
     }
 
     private fun overPad(x: Float, y: Float): Boolean {
@@ -482,7 +502,7 @@ class OverlayService : Service(), MouseController {
     private fun updateCursorWindow() {
         val view = cursorView ?: return
         val params = cursorParams ?: return
-        val size = dpInt(CURSOR_WINDOW_DP)
+        val size = cursorSizePx()
         params.x = (cursorX - CursorView.hotspotX(size)).toInt()
         params.y = (cursorY - CursorView.hotspotY(size)).toInt()
         safeUpdate(view, params)
@@ -676,7 +696,7 @@ class OverlayService : Service(), MouseController {
         private const val CHANNEL_ID = "mouse_overlay"
         private const val NOTIFICATION_ID = 42
 
-        private const val CURSOR_WINDOW_DP = 56f
+        private const val CURSOR_BASE_DP = 56f
         private const val PAD_MARGIN_DP = 10f
 
         /** The blocker is invisible outside the settings screen; this is only for touch policy. */
@@ -685,7 +705,8 @@ class OverlayService : Service(), MouseController {
         private const val INITIAL_CURSOR_HEIGHT_FRACTION = 0.35f
         private const val DEFAULT_PAD_HEIGHT_FRACTION = 0.75f
         private const val MAX_PASSTHROUGH_MS = 2_500L
-        private const val INJECTION_SETTLE_MS = 50L
+        /** Long enough for the cleared flags and opacities to reach the window manager. */
+        private const val INJECTION_SETTLE_MS = 80L
         private const val PASSTHROUGH_TAIL_MS = 60L
         private const val ROTATION_SETTLE_MS = 300L
         private const val SPRING_BACK_MS = 180L

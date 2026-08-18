@@ -181,6 +181,24 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
+            android:text="@string/setting_cursor_size"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/value_cursor_size"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textStyle="bold" />
+
+        <SeekBar
+            android:id="@+id/seek_cursor_size"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
             android:text="@string/setting_opacity"
             android:textSize="14sp" />
 

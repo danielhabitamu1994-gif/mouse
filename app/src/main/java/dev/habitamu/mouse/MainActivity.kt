@@ -97,12 +97,23 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
+        binding.seekCursorSize.max = SLIDER_STEPS
+        binding.seekCursorSize.setOnSeekBarChangeListener(object : SimpleSeekBarListener() {
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                val scale = scale(progress, Prefs.MIN_CURSOR_SCALE, Prefs.MAX_CURSOR_SCALE)
+                binding.valueCursorSize.text = percentage(scale)
+                if (fromUser) {
+                    prefs.cursorScale = scale
+                    pushSettings()
+                }
+            }
+        })
+
         binding.seekOpacity.max = SLIDER_STEPS
         binding.seekOpacity.setOnSeekBarChangeListener(object : SimpleSeekBarListener() {
             override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
                 val opacity = scale(progress, Prefs.MIN_OPACITY, Prefs.MAX_OPACITY)
-                binding.valueOpacity.text =
-                    getString(R.string.value_opacity, (opacity * 100).roundToInt())
+                binding.valueOpacity.text = percentage(opacity)
                 if (fromUser) {
                     prefs.overlayOpacity = opacity
                     pushSettings()
@@ -184,14 +195,16 @@ class MainActivity : AppCompatActivity() {
         binding.seekCoverage.progress = coveragePercent - COVERAGE_MIN_PERCENT
         binding.seekSensitivity.progress =
             progressOf(prefs.sensitivity, Prefs.MIN_SENSITIVITY, Prefs.MAX_SENSITIVITY)
+        binding.seekCursorSize.progress =
+            progressOf(prefs.cursorScale, Prefs.MIN_CURSOR_SCALE, Prefs.MAX_CURSOR_SCALE)
         binding.seekOpacity.progress =
             progressOf(prefs.overlayOpacity, Prefs.MIN_OPACITY, Prefs.MAX_OPACITY)
 
         // Setting a progress that is already current fires no callback, so label the values here.
         binding.valueCoverage.text = getString(R.string.value_percent, coveragePercent)
         binding.valueSensitivity.text = getString(R.string.value_multiplier, prefs.sensitivity)
-        binding.valueOpacity.text =
-            getString(R.string.value_opacity, (prefs.overlayOpacity * 100).roundToInt())
+        binding.valueCursorSize.text = percentage(prefs.cursorScale)
+        binding.valueOpacity.text = percentage(prefs.overlayOpacity)
     }
 
     private fun refreshUi() {
@@ -212,6 +225,9 @@ class MainActivity : AppCompatActivity() {
         )
         binding.btnPlaceBubble.isEnabled = running && prefs.padMode == PadMode.BUBBLE
     }
+
+    private fun percentage(fraction: Float): String =
+        getString(R.string.value_percentage, (fraction * 100).roundToInt())
 
     private fun scale(progress: Int, min: Float, max: Float): Float =
         min + (max - min) * progress / SLIDER_STEPS

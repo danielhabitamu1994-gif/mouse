@@ -39,7 +39,9 @@ class TrackpadPanel(context: Context, private val controller: MouseController) :
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
 
     private var mode = PadMode.TRACKPAD
-    private var collapsed = true
+
+    /** Matches the layout, which starts with the panel showing. */
+    private var collapsed = false
 
     fun applyMode(newMode: PadMode) {
         mode = newMode
@@ -58,14 +60,17 @@ class TrackpadPanel(context: Context, private val controller: MouseController) :
     }
 
     fun setCollapsed(value: Boolean) {
-        if (collapsed == value) return
+        // The bubble is all there is in bubble mode; it never opens into the panel.
         if (!value && mode == PadMode.BUBBLE) return
 
+        val changed = collapsed != value
         collapsed = value
+        // Applied every time rather than only on a change, so the flag can never drift out of
+        // step with what is actually on screen.
         expandedPanel.visibility = if (value) View.GONE else View.VISIBLE
         collapsedPuck.visibility = if (value) View.VISIBLE else View.GONE
         // Reposition before the layout pass runs, so the panel does not flash at the wrong edge.
-        controller.onPadResized()
+        if (changed) controller.onPadResized()
     }
 
     // ------------------------------------------------------------- gestures

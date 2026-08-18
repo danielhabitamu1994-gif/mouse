@@ -23,6 +23,7 @@
     <string name="setting_blocker">Block touches in the damaged area</string>
     <string name="setting_coverage">Blocked area, measured from the top of the screen</string>
     <string name="setting_sensitivity">Cursor speed</string>
+    <string name="setting_cursor_size">Cursor size</string>
     <string name="setting_opacity">How solid the cursor and the control look</string>
 
     <string name="status_granted">Granted</string>
@@ -39,7 +40,7 @@
 
     <string name="value_percent">Top %1$d%% of the screen</string>
     <string name="value_multiplier">%1$.1f×</string>
-    <string name="value_opacity">%1$d%%</string>
+    <string name="value_percentage">%1$d%%</string>
 
     <string name="usage_help">Slide to move the cursor — lifting your finger does not tap. Tap
         without sliding to click where the cursor is. Double tap and release to long press. Double
