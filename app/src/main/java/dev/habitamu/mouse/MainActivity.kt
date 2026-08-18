@@ -245,9 +245,13 @@ class MainActivity : AppCompatActivity() {
             if (accessibilityOn) R.string.status_granted else R.string.status_missing
         )
 
-        val shortcutReady = MouseAccessibilityService.instance?.canFilterKeys() == true
+        val service = MouseAccessibilityService.instance
         binding.statusShortcut.setText(
-            if (shortcutReady) R.string.status_ready else R.string.status_unavailable
+            when {
+                service?.canFilterKeys() != true -> R.string.status_unavailable
+                service.hasSeenVolumeKey() -> R.string.status_working
+                else -> R.string.status_untested
+            }
         )
 
         val running = OverlayService.isRunning

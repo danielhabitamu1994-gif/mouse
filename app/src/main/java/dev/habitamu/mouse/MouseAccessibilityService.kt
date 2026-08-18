@@ -37,8 +37,7 @@ class MouseAccessibilityService : AccessibilityService() {
     private var keyboardTop = NO_KEYBOARD
     private var volumeUpAt = 0L
     private var volumeDownAt = 0L
-    private var volumeUpHeld = false
-    private var volumeDownHeld = false
+    private var sawVolumeKey = false
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -109,32 +108,22 @@ class MouseAccessibilityService : AccessibilityService() {
     // --------------------------------------------------------- volume combo
 
     /**
-     * Both volume keys count as the shortcut, and there are two ways to give it: hold one and
-     * press the other, or press them one after the other quickly. Most phones have a single
-     * rocker where pressing both ends at once is awkward, so the second way is the one that
-     * usually gets used.
+     * The shortcut is one volume key quickly followed by the other. Deliberately not both keys
+     * held down together: that is Android's own accessibility shortcut, the system takes it
+     * first, and what it does is switch this whole service off.
      */
     override fun onKeyEvent(event: KeyEvent): Boolean {
-        val down = event.action == KeyEvent.ACTION_DOWN
+        if (event.action != KeyEvent.ACTION_DOWN || event.repeatCount != 0) return false
         when (event.keyCode) {
-            KeyEvent.KEYCODE_VOLUME_UP -> {
-                volumeUpHeld = down
-                if (down && event.repeatCount == 0) volumeUpAt = event.eventTime
-            }
-
-            KeyEvent.KEYCODE_VOLUME_DOWN -> {
-                volumeDownHeld = down
-                if (down && event.repeatCount == 0) volumeDownAt = event.eventTime
-            }
-
+            KeyEvent.KEYCODE_VOLUME_UP -> volumeUpAt = event.eventTime
+            KeyEvent.KEYCODE_VOLUME_DOWN -> volumeDownAt = event.eventTime
             else -> return false
         }
-        if (!down) return false
+        sawVolumeKey = true
 
-        val bothHeld = volumeUpHeld && volumeDownHeld
         val oneAfterTheOther = volumeUpAt > 0L && volumeDownAt > 0L &&
             abs(volumeUpAt - volumeDownAt) <= VOLUME_COMBO_MS
-        if (!bothHeld && !oneAfterTheOther) return false
+        if (!oneAfterTheOther) return false
 
         volumeUpAt = 0L
         volumeDownAt = 0L
@@ -143,6 +132,9 @@ class MouseAccessibilityService : AccessibilityService() {
         // Swallowed, so this key at least does not also move the volume.
         return true
     }
+
+    /** Whether any volume key has actually reached us, for the setup screen to report. */
+    fun hasSeenVolumeKey(): Boolean = sawVolumeKey
 
     // -------------------------------------------------------------- gestures
 

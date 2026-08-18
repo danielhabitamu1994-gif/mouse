@@ -44,7 +44,7 @@ and nothing else - no screen text is ever fetched.
 | Double tap, release | Long press at the cursor. |
 | Double tap, then slide without lifting | Drag from the cursor. Slide straight away for a swipe (scrolling); rest a moment first and the drag presses and holds before moving, which is what picking an icon up needs. |
 | Triple tap (bubble only) | Switches the bubble off: it disappears entirely, cursor included, and stops taking touches, so edge swipes and everything behind it work normally. |
-| Volume up + down together | Switches the bubble off or back on - held together, or one within 800ms of the other, since pressing both ends of a rocker at once is awkward. The notification carries the same toggle, for when key events are not getting through. |
+| One volume key, then the other, quickly | Switches the bubble off or back on. Not both keys *held together*: that is Android's own accessibility shortcut, the system takes it first, and what it does is switch this service off. The notification carries the same toggle. |
 
 The triple tap costs the bubble a double-tap timeout of delay on its click and long press, since
 both have to wait and see whether another tap is coming. The panel does not have the triple tap

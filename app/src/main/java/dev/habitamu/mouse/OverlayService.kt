@@ -72,8 +72,16 @@ class OverlayService : Service(), MouseController {
 
     private val restoreBlocking = Runnable { restoreTouchBlocking() }
 
-    private val clockReceiver = object : BroadcastReceiver() {
+    private val systemReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == MouseAccessibilityService.ACTION_STATE_CHANGED) {
+                // Android's own volume shortcut switches accessibility services off, and the
+                // overlays carry on regardless, so say what happened rather than going quiet.
+                if (MouseAccessibilityService.instance == null && overlaysAdded) {
+                    toast(getString(R.string.error_accessibility_lost))
+                }
+                return
+            }
             trackpad?.updateClock()
         }
     }
@@ -89,10 +97,11 @@ class OverlayService : Service(), MouseController {
         // ones, so this is the one place it can be picked up.
         ContextCompat.registerReceiver(
             this,
-            clockReceiver,
+            systemReceiver,
             IntentFilter(Intent.ACTION_TIME_TICK).apply {
                 addAction(Intent.ACTION_TIME_CHANGED)
                 addAction(Intent.ACTION_TIMEZONE_CHANGED)
+                addAction(MouseAccessibilityService.ACTION_STATE_CHANGED)
             },
             ContextCompat.RECEIVER_NOT_EXPORTED
         )
@@ -149,7 +158,7 @@ class OverlayService : Service(), MouseController {
         broadcastState()
         MouseAccessibilityService.keyboardListener = null
         MouseAccessibilityService.shortcutListener = null
-        unregisterReceiver(clockReceiver)
+        unregisterReceiver(systemReceiver)
         springBack?.cancel()
         handler.removeCallbacksAndMessages(null)
         removeOverlays()

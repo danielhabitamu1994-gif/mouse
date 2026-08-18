@@ -39,12 +39,15 @@
 
     <string name="status_granted">On</string>
     <string name="status_missing">Off</string>
-    <string name="status_ready">Ready</string>
+    <string name="status_working">Working</string>
+    <string name="status_untested">Press a volume key</string>
     <string name="status_unavailable">Not working</string>
-    <string name="step_volume_shortcut">Volume up + down shortcut</string>
-    <string name="volume_shortcut_note">If this says "Not working", switch the Mouse accessibility
-        service off and on again in Settings. The notification also has a button to hide and show
-        the bubble.</string>
+    <string name="step_volume_shortcut">Volume shortcut</string>
+    <string name="volume_shortcut_note">Press one volume key and then the other, quickly - not both
+        together. Holding both together is Android\'s own shortcut and it switches the Mouse
+        accessibility service off, so turn that off under Settings &#8250; Accessibility &#8250;
+        Mouse &#8250; Shortcut. Reopen this screen after pressing a volume key to see whether the
+        keys reach Mouse. The notification always has a button to hide and show the bubble.</string>
     <string name="status_service_running">Overlays are running</string>
     <string name="status_service_stopped">Overlays are stopped</string>
 
@@ -90,6 +93,8 @@
     <string name="error_overlay_permission">Mouse needs permission to draw over other apps.</string>
     <string name="error_accessibility_off">Turn on the Mouse accessibility service first.</string>
     <string name="error_gesture_failed">That tap could not be delivered.</string>
+    <string name="error_accessibility_lost">The Mouse accessibility service was switched off, so
+        the cursor cannot tap. Turn it back on in Settings.</string>
 
     <string name="notification_channel_name">Mouse overlays</string>
     <string name="notification_channel_description">Shown while the cursor and touch blocker are
