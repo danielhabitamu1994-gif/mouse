@@ -35,6 +35,9 @@ interface MouseController {
     /** The panel is about to change size; reposition it so its anchored corner stays put. */
     fun onPadResized()
 
+    /** The bubble was switched off or back on with a triple tap. */
+    fun onControlActiveChanged(active: Boolean)
+
     fun toggleBlocker()
 
     fun isBlockerEnabled(): Boolean

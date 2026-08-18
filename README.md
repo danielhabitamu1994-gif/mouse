@@ -29,6 +29,10 @@ wires the control to the accessibility service through the `MouseController` int
   it, so the screen can be crossed in several strokes. The home spot is chosen from the settings
   screen: press "Choose where the bubble sits", drag the bubble, and let go.
 
+Either shape lifts itself above the keyboard while one is open and settles back afterwards. A one
+pixel probe window, laid out inside the system insets rather than over them, is what notices: the
+keyboard shrinks it, and its height is the difference.
+
 ### Gestures, in either shape
 
 | Gesture | Result |
@@ -37,6 +41,11 @@ wires the control to the accessibility service through the `MouseController` int
 | Tap without sliding | Click where the cursor is. |
 | Double tap, release | Long press at the cursor. |
 | Double tap, then slide without lifting | Drag from the cursor. Slide straight away for a swipe (scrolling); rest a moment first and the drag presses and holds before moving, which is what picking an icon up needs. |
+| Triple tap (bubble only) | Switches the bubble off: it fades to a quarter and drives nothing until another triple tap brings it back. |
+
+The triple tap costs the bubble a double-tap timeout of delay on its click and long press, since
+both have to wait and see whether another tap is coming. The panel does not have the triple tap
+and so does not pay for it.
 
 ### Three details that are easy to get wrong
 

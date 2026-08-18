@@ -12,8 +12,12 @@ import kotlin.math.hypot
 
 /**
  * The virtual pointer: a rounded arrow with a heavy white outline and a soft shadow, so it stays
- * readable on top of any app. The hot spot - the point that actually gets clicked - is the tip,
- * not the centre of the view; [hotspotX] and [hotspotY] say where that is.
+ * readable on top of any app.
+ *
+ * The arrow is taller than it is wide, and the view is sized to match rather than squared off,
+ * which is what keeps the shape from looking stretched sideways. The hot spot - the point that
+ * actually gets clicked - is the tip, so the window is offset by [hotspotX] and [hotspotY], and
+ * [widthFor] gives the window width that goes with a given height.
  */
 @SuppressLint("ViewConstructor")
 class CursorView(context: Context) : View(context) {
@@ -49,16 +53,21 @@ class CursorView(context: Context) : View(context) {
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
-        val size = minOf(w, h) * SHAPE_SCALE
-        buildArrow(size)
+        buildArrow(h.toFloat())
 
-        outline.strokeWidth = size * OUTLINE_WIDTH
-        outline.setShadowLayer(size * 0.07f, size * 0.035f, size * 0.05f, SHADOW)
+        // Drawn at double width; the fill then covers the inner half, so the visible band is half.
+        outline.strokeWidth = h * INSET * 2f
+        outline.setShadowLayer(h * 0.05f, h * 0.025f, h * 0.035f, SHADOW)
     }
 
-    private fun buildArrow(size: Float) {
-        val points = SHAPE.map { PointF(it.x * size, it.y * size) }
-        val radii = CORNER_RADII.map { it * size }
+    private fun buildArrow(viewHeight: Float) {
+        val height = viewHeight * SHAPE_HEIGHT
+        val width = height * SHAPE_ASPECT
+        val originX = viewHeight * INSET
+        val originY = viewHeight * INSET
+
+        val points = SHAPE.map { PointF(originX + it.x * width, originY + it.y * height) }
+        val radii = CORNER_RADII.map { it * height }
 
         arrow.reset()
         val count = points.size
@@ -87,31 +96,41 @@ class CursorView(context: Context) : View(context) {
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        // The outline is drawn first at double width; the fill then covers its inner half, which
-        // leaves an even white border and keeps the shadow outside the shape.
         canvas.drawPath(arrow, outline)
         canvas.drawPath(arrow, fill)
     }
 
     companion object {
-        /** Fraction of the view the arrow occupies; the rest is room for the shadow. */
-        private const val SHAPE_SCALE = 0.88f
-        private const val OUTLINE_WIDTH = 0.15f
+        /** Width over height of the arrow itself, taken from the artwork. */
+        private const val SHAPE_ASPECT = 0.84f
+
+        /** Half the outline width, and the margin the shape keeps from the view edges. */
+        private const val INSET = 0.045f
+
+        /** Room on the right and below for the shadow to fall into. */
+        private const val SHADOW_PAD = 0.06f
+
+        private const val SHAPE_HEIGHT = 1f - 2 * INSET - SHADOW_PAD
 
         private const val IDLE_FILL = 0xFF0D0D0D.toInt()
         private const val ACTIVE_FILL = 0xFF00B8D4.toInt()
         private const val SHADOW = 0x73000000
 
-        /** Tip, right point, notch, bottom point - in fractions of the arrow's box. */
+        /** Tip, right point, notch, bottom point - in fractions of the arrow's own box. */
         private val SHAPE = listOf(
-            PointF(0.09f, 0.04f),
-            PointF(0.95f, 0.62f),
-            PointF(0.53f, 0.68f),
-            PointF(0.33f, 0.98f)
+            PointF(0.00f, 0.00f),
+            PointF(1.00f, 0.56f),
+            PointF(0.51f, 0.69f),
+            PointF(0.11f, 1.00f)
         )
-        private val CORNER_RADII = listOf(0.10f, 0.12f, 0.11f, 0.11f)
+        private val CORNER_RADII = listOf(0.10f, 0.13f, 0.11f, 0.11f)
 
-        fun hotspotX(sizePx: Int): Float = sizePx * SHAPE_SCALE * SHAPE[0].x
-        fun hotspotY(sizePx: Int): Float = sizePx * SHAPE_SCALE * SHAPE[0].y
+        /** The window width that goes with a window of this height. */
+        fun widthFor(heightPx: Int): Int =
+            (heightPx * (SHAPE_HEIGHT * SHAPE_ASPECT + 2 * INSET + SHADOW_PAD)).toInt()
+
+        fun hotspotX(heightPx: Int): Float = heightPx * INSET
+
+        fun hotspotY(heightPx: Int): Float = heightPx * INSET
     }
 }

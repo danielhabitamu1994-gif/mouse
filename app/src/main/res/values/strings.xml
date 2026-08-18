@@ -6,28 +6,36 @@
         trackpad and an on-screen cursor to drive the phone with instead.</string>
 
     <string name="setup_heading">Setup</string>
-    <string name="step_overlay">1. Allow drawing over other apps, so the blocker, cursor and
-        trackpad can sit above whatever you are using.</string>
-    <string name="step_accessibility">2. Turn on the Mouse accessibility service, so the cursor
-        can actually tap things. Find it under Settings &#8250; Accessibility &#8250; Mouse.</string>
+    <string name="step_overlay">Draw over other apps</string>
+    <string name="step_accessibility">Accessibility service</string>
 
     <string name="mode_heading">Control</string>
     <string name="mode_trackpad">Trackpad panel</string>
     <string name="mode_bubble">Bubble only</string>
     <string name="mode_bubble_detail">The bubble follows your finger and the cursor moves with it.
         Let go and the bubble slides back to its spot, while the cursor stays where you left it, so
-        you can cross the screen in several strokes.</string>
+        you can cross the screen in several strokes. Triple tap the bubble to switch it off - it
+        fades and stops responding until you triple tap it again. It also lifts itself above the
+        keyboard while one is open.</string>
     <string name="action_place_bubble">Choose where the bubble sits</string>
 
-    <string name="settings_heading">Settings</string>
+    <string name="blocker_heading">Touch blocker</string>
     <string name="setting_blocker">Block touches in the damaged area</string>
-    <string name="setting_coverage">Blocked area, measured from the top of the screen</string>
+    <string name="setting_coverage">Blocked area</string>
+    <string name="blocker_preview_note">The outline and the label are drawn only while this screen
+        is open, so nothing marks the screen while you use the phone. Touches are blocked either
+        way.</string>
+
+    <string name="pointer_heading">Pointer</string>
     <string name="setting_sensitivity">Cursor speed</string>
     <string name="setting_cursor_size">Cursor size</string>
-    <string name="setting_opacity">How solid the cursor and the control look</string>
+    <string name="setting_cursor_opacity">Cursor opacity</string>
+    <string name="setting_control_opacity">Trackpad / bubble opacity</string>
 
-    <string name="status_granted">Granted</string>
-    <string name="status_missing">Not granted yet</string>
+    <string name="gestures_heading">Gestures</string>
+
+    <string name="status_granted">On</string>
+    <string name="status_missing">Off</string>
     <string name="status_service_running">Overlays are running</string>
     <string name="status_service_stopped">Overlays are stopped</string>
 
@@ -42,11 +50,10 @@
     <string name="value_multiplier">%1$.1f×</string>
     <string name="value_percentage">%1$d%%</string>
 
-    <string name="usage_help">Slide to move the cursor — lifting your finger does not tap. Tap
-        without sliding to click where the cursor is. Double tap and release to long press. Double
+    <string name="usage_help">Slide to move the cursor — lifting your finger does not tap.\nTap
+        without sliding to click where the cursor is.\nDouble tap and release to long press.\nDouble
         tap and, without lifting, slide to drag: slide straight away to scroll, or rest a moment
-        first to pick something up.\n\nThe blocked area is only outlined while this screen is open,
-        so nothing marks your screen while you use the phone.</string>
+        first to pick something up.\nTriple tap the bubble to switch it off and on.</string>
 
     <string name="blocker_watermark">TOUCH BLOCKED</string>
 

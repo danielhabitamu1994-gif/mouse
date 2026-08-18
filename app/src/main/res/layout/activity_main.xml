@@ -2,241 +2,274 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:fillViewport="true">
+    android:fillViewport="true"
+    android:scrollbarStyle="outsideOverlay">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="20dp">
+        android:paddingStart="16dp"
+        android:paddingTop="24dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="24dp">
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/app_name"
-            android:textSize="26sp"
+            android:textSize="30sp"
             android:textStyle="bold" />
 
         <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            style="@style/Hint"
             android:layout_marginTop="4dp"
-            android:text="@string/intro"
-            android:textSize="14sp" />
+            android:text="@string/intro" />
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            android:text="@string/setup_heading"
-            android:textStyle="bold" />
+        <!-- Setup -->
+        <LinearLayout style="@style/Card">
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:text="@string/step_overlay"
-            android:textSize="14sp" />
+            <TextView
+                style="@style/CardTitle"
+                android:text="@string/setup_heading" />
 
-        <TextView
-            android:id="@+id/status_overlay"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/status_missing"
-            android:textSize="13sp"
-            android:textStyle="bold" />
+            <LinearLayout style="@style/SettingRow">
 
-        <Button
-            android:id="@+id/btn_overlay_permission"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:text="@string/action_grant_overlay" />
+                <TextView
+                    style="@style/SettingLabel"
+                    android:text="@string/step_overlay" />
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:text="@string/step_accessibility"
-            android:textSize="14sp" />
+                <TextView
+                    android:id="@+id/status_overlay"
+                    style="@style/SettingValue"
+                    android:text="@string/status_missing" />
+            </LinearLayout>
 
-        <TextView
-            android:id="@+id/status_accessibility"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/status_missing"
-            android:textSize="13sp"
-            android:textStyle="bold" />
-
-        <Button
-            android:id="@+id/btn_accessibility"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:text="@string/action_open_accessibility" />
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:layout_marginTop="24dp"
-            android:background="?android:attr/listDivider" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:text="@string/mode_heading"
-            android:textStyle="bold" />
-
-        <RadioGroup
-            android:id="@+id/radio_mode"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:orientation="vertical">
-
-            <RadioButton
-                android:id="@+id/radio_trackpad"
+            <Button
+                android:id="@+id/btn_overlay_permission"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/mode_trackpad" />
+                android:layout_marginTop="8dp"
+                android:text="@string/action_grant_overlay" />
 
-            <RadioButton
-                android:id="@+id/radio_bubble"
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="16dp"
+                android:background="#26808080" />
+
+            <LinearLayout style="@style/SettingRow">
+
+                <TextView
+                    style="@style/SettingLabel"
+                    android:text="@string/step_accessibility" />
+
+                <TextView
+                    android:id="@+id/status_accessibility"
+                    style="@style/SettingValue"
+                    android:text="@string/status_missing" />
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/btn_accessibility"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/mode_bubble" />
-        </RadioGroup>
+                android:layout_marginTop="8dp"
+                android:text="@string/action_open_accessibility" />
+        </LinearLayout>
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/mode_bubble_detail"
-            android:textSize="13sp" />
+        <!-- Control -->
+        <LinearLayout style="@style/Card">
 
-        <Button
-            android:id="@+id/btn_place_bubble"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="@string/action_place_bubble" />
+            <TextView
+                style="@style/CardTitle"
+                android:text="@string/mode_heading" />
 
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:layout_marginTop="24dp"
-            android:background="?android:attr/listDivider" />
+            <RadioGroup
+                android:id="@+id/radio_mode"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:text="@string/settings_heading"
-            android:textStyle="bold" />
+                <RadioButton
+                    android:id="@+id/radio_trackpad"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="6dp"
+                    android:paddingEnd="0dp"
+                    android:text="@string/mode_trackpad"
+                    android:textSize="15sp" />
 
-        <androidx.appcompat.widget.SwitchCompat
-            android:id="@+id/switch_blocker"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:text="@string/setting_blocker" />
+                <RadioButton
+                    android:id="@+id/radio_bubble"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="6dp"
+                    android:paddingEnd="0dp"
+                    android:text="@string/mode_bubble"
+                    android:textSize="15sp" />
+            </RadioGroup>
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="@string/setting_coverage"
-            android:textSize="14sp" />
+            <TextView
+                style="@style/Hint"
+                android:layout_marginTop="8dp"
+                android:text="@string/mode_bubble_detail" />
 
-        <TextView
-            android:id="@+id/value_coverage"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textStyle="bold" />
+            <Button
+                android:id="@+id/btn_place_bubble"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/action_place_bubble" />
+        </LinearLayout>
 
-        <SeekBar
-            android:id="@+id/seek_coverage"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
+        <!-- Touch blocker -->
+        <LinearLayout style="@style/Card">
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="@string/setting_sensitivity"
-            android:textSize="14sp" />
+            <TextView
+                style="@style/CardTitle"
+                android:text="@string/blocker_heading" />
 
-        <TextView
-            android:id="@+id/value_sensitivity"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textStyle="bold" />
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/switch_blocker"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/setting_blocker"
+                android:textSize="15sp" />
 
-        <SeekBar
-            android:id="@+id/seek_sensitivity"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
+            <LinearLayout
+                style="@style/SettingRow"
+                android:layout_marginTop="16dp">
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="@string/setting_cursor_size"
-            android:textSize="14sp" />
+                <TextView
+                    style="@style/SettingLabel"
+                    android:text="@string/setting_coverage" />
 
-        <TextView
-            android:id="@+id/value_cursor_size"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textStyle="bold" />
+                <TextView
+                    android:id="@+id/value_coverage"
+                    style="@style/SettingValue" />
+            </LinearLayout>
 
-        <SeekBar
-            android:id="@+id/seek_cursor_size"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
+            <SeekBar
+                android:id="@+id/seek_coverage"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="@string/setting_opacity"
-            android:textSize="14sp" />
+            <TextView
+                style="@style/Hint"
+                android:layout_marginTop="4dp"
+                android:text="@string/blocker_preview_note" />
+        </LinearLayout>
 
-        <TextView
-            android:id="@+id/value_opacity"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textStyle="bold" />
+        <!-- Pointer -->
+        <LinearLayout style="@style/Card">
 
-        <SeekBar
-            android:id="@+id/seek_opacity"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
+            <TextView
+                style="@style/CardTitle"
+                android:text="@string/pointer_heading" />
+
+            <LinearLayout style="@style/SettingRow">
+
+                <TextView
+                    style="@style/SettingLabel"
+                    android:text="@string/setting_sensitivity" />
+
+                <TextView
+                    android:id="@+id/value_sensitivity"
+                    style="@style/SettingValue" />
+            </LinearLayout>
+
+            <SeekBar
+                android:id="@+id/seek_sensitivity"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
+            <LinearLayout
+                style="@style/SettingRow"
+                android:layout_marginTop="12dp">
+
+                <TextView
+                    style="@style/SettingLabel"
+                    android:text="@string/setting_cursor_size" />
+
+                <TextView
+                    android:id="@+id/value_cursor_size"
+                    style="@style/SettingValue" />
+            </LinearLayout>
+
+            <SeekBar
+                android:id="@+id/seek_cursor_size"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
+            <LinearLayout
+                style="@style/SettingRow"
+                android:layout_marginTop="12dp">
+
+                <TextView
+                    style="@style/SettingLabel"
+                    android:text="@string/setting_cursor_opacity" />
+
+                <TextView
+                    android:id="@+id/value_cursor_opacity"
+                    style="@style/SettingValue" />
+            </LinearLayout>
+
+            <SeekBar
+                android:id="@+id/seek_cursor_opacity"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
+            <LinearLayout
+                style="@style/SettingRow"
+                android:layout_marginTop="12dp">
+
+                <TextView
+                    style="@style/SettingLabel"
+                    android:text="@string/setting_control_opacity" />
+
+                <TextView
+                    android:id="@+id/value_control_opacity"
+                    style="@style/SettingValue" />
+            </LinearLayout>
+
+            <SeekBar
+                android:id="@+id/seek_control_opacity"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+        <!-- Gestures -->
+        <LinearLayout style="@style/Card">
+
+            <TextView
+                style="@style/CardTitle"
+                android:text="@string/gestures_heading" />
+
+            <TextView
+                style="@style/Hint"
+                android:text="@string/usage_help" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/status_service"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="28dp"
+            android:layout_marginTop="24dp"
             android:gravity="center"
             android:text="@string/status_service_stopped"
-            android:textSize="13sp" />
+            android:textSize="13sp"
+            android:alpha="0.7" />
 
         <Button
             android:id="@+id/btn_toggle_service"
             android:layout_width="match_parent"
-            android:layout_height="64dp"
+            android:layout_height="60dp"
             android:layout_marginTop="8dp"
             android:text="@string/action_start"
-            android:textSize="16sp" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:layout_marginBottom="24dp"
-            android:text="@string/usage_help"
-            android:textSize="13sp" />
+            android:textSize="17sp"
+            android:textStyle="bold" />
 
     </LinearLayout>
 </ScrollView>

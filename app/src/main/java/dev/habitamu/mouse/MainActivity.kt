@@ -109,13 +109,25 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
-        binding.seekOpacity.max = SLIDER_STEPS
-        binding.seekOpacity.setOnSeekBarChangeListener(object : SimpleSeekBarListener() {
+        binding.seekCursorOpacity.max = SLIDER_STEPS
+        binding.seekCursorOpacity.setOnSeekBarChangeListener(object : SimpleSeekBarListener() {
             override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
                 val opacity = scale(progress, Prefs.MIN_OPACITY, Prefs.MAX_OPACITY)
-                binding.valueOpacity.text = percentage(opacity)
+                binding.valueCursorOpacity.text = percentage(opacity)
                 if (fromUser) {
-                    prefs.overlayOpacity = opacity
+                    prefs.cursorOpacity = opacity
+                    pushSettings()
+                }
+            }
+        })
+
+        binding.seekControlOpacity.max = SLIDER_STEPS
+        binding.seekControlOpacity.setOnSeekBarChangeListener(object : SimpleSeekBarListener() {
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                val opacity = scale(progress, Prefs.MIN_OPACITY, Prefs.MAX_OPACITY)
+                binding.valueControlOpacity.text = percentage(opacity)
+                if (fromUser) {
+                    prefs.controlOpacity = opacity
                     pushSettings()
                 }
             }
@@ -197,14 +209,17 @@ class MainActivity : AppCompatActivity() {
             progressOf(prefs.sensitivity, Prefs.MIN_SENSITIVITY, Prefs.MAX_SENSITIVITY)
         binding.seekCursorSize.progress =
             progressOf(prefs.cursorScale, Prefs.MIN_CURSOR_SCALE, Prefs.MAX_CURSOR_SCALE)
-        binding.seekOpacity.progress =
-            progressOf(prefs.overlayOpacity, Prefs.MIN_OPACITY, Prefs.MAX_OPACITY)
+        binding.seekCursorOpacity.progress =
+            progressOf(prefs.cursorOpacity, Prefs.MIN_OPACITY, Prefs.MAX_OPACITY)
+        binding.seekControlOpacity.progress =
+            progressOf(prefs.controlOpacity, Prefs.MIN_OPACITY, Prefs.MAX_OPACITY)
 
         // Setting a progress that is already current fires no callback, so label the values here.
         binding.valueCoverage.text = getString(R.string.value_percent, coveragePercent)
         binding.valueSensitivity.text = getString(R.string.value_multiplier, prefs.sensitivity)
         binding.valueCursorSize.text = percentage(prefs.cursorScale)
-        binding.valueOpacity.text = percentage(prefs.overlayOpacity)
+        binding.valueCursorOpacity.text = percentage(prefs.cursorOpacity)
+        binding.valueControlOpacity.text = percentage(prefs.controlOpacity)
     }
 
     private fun refreshUi() {

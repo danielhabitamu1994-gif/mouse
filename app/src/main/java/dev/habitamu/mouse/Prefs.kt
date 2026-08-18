@@ -54,11 +54,18 @@ class Prefs(context: Context) {
             .putFloat(KEY_CURSOR_SCALE, value.coerceIn(MIN_CURSOR_SCALE, MAX_CURSOR_SCALE))
             .apply()
 
-    /** Opacity of the cursor and of the floating control. */
-    var overlayOpacity: Float
-        get() = prefs.getFloat(KEY_OPACITY, DEFAULT_OPACITY)
+    /** Opacity of the cursor. */
+    var cursorOpacity: Float
+        get() = prefs.getFloat(KEY_CURSOR_OPACITY, DEFAULT_OPACITY)
         set(value) = prefs.edit()
-            .putFloat(KEY_OPACITY, value.coerceIn(MIN_OPACITY, MAX_OPACITY))
+            .putFloat(KEY_CURSOR_OPACITY, value.coerceIn(MIN_OPACITY, MAX_OPACITY))
+            .apply()
+
+    /** Opacity of the trackpad panel or the bubble. */
+    var controlOpacity: Float
+        get() = prefs.getFloat(KEY_CONTROL_OPACITY, DEFAULT_OPACITY)
+        set(value) = prefs.edit()
+            .putFloat(KEY_CONTROL_OPACITY, value.coerceIn(MIN_OPACITY, MAX_OPACITY))
             .apply()
 
     /** Where the trackpad panel was left. -1 means "not placed yet". */
@@ -85,7 +92,8 @@ class Prefs(context: Context) {
         private const val KEY_BLOCKER_ENABLED = "blocker_enabled"
         private const val KEY_BLOCKER_FRACTION = "blocker_fraction"
         private const val KEY_SENSITIVITY = "sensitivity"
-        private const val KEY_OPACITY = "overlay_opacity"
+        private const val KEY_CURSOR_OPACITY = "cursor_opacity"
+        private const val KEY_CONTROL_OPACITY = "control_opacity"
         private const val KEY_CURSOR_SCALE = "cursor_scale"
         private const val KEY_PANEL_X = "panel_x"
         private const val KEY_PANEL_Y = "panel_y"
@@ -103,11 +111,14 @@ class Prefs(context: Context) {
         const val MAX_SENSITIVITY = 4.0f
 
         const val DEFAULT_CURSOR_SCALE = 1.0f
-        const val MIN_CURSOR_SCALE = 0.6f
+        const val MIN_CURSOR_SCALE = 0.2f
         const val MAX_CURSOR_SCALE = 2.4f
 
         const val DEFAULT_OPACITY = 0.75f
-        const val MIN_OPACITY = 0.25f
+        const val MIN_OPACITY = 0.2f
+
+        /** What a bubble that has been switched off with a triple tap fades to. */
+        const val DIMMED_OPACITY = 0.25f
 
         /**
          * Android discards touches that pass through an untrusted overlay above this opacity, and

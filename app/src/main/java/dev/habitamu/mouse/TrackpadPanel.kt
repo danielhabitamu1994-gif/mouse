@@ -43,11 +43,34 @@ class TrackpadPanel(context: Context, private val controller: MouseController) :
     /** Matches the layout, which starts with the panel showing. */
     private var collapsed = false
 
+    /**
+     * A bubble switched off with a triple tap stays on screen, faded, and still listens for the
+     * triple tap that brings it back - but it drives nothing in the meantime.
+     */
+    private var active = true
+
     fun applyMode(newMode: PadMode) {
         mode = newMode
-        if (newMode == PadMode.BUBBLE) setCollapsed(true)
+        // Only the bubble has the triple tap, and only it pays for it in click latency.
+        detector.waitForMoreTaps = newMode == PadMode.BUBBLE
+        if (newMode == PadMode.BUBBLE) {
+            setCollapsed(true)
+        } else if (!active) {
+            setActive(true)
+        }
         syncState()
     }
+
+    private fun setActive(value: Boolean) {
+        if (active == value) return
+        active = value
+        // Deliberately not disabling the view: a disabled view gets no touches, and the switched
+        // off bubble still has to notice the triple tap that brings it back. Fading the window is
+        // the whole of the change, and the controller does that.
+        controller.onControlActiveChanged(value)
+    }
+
+    fun release() = detector.release()
 
     /** Refresh every label that mirrors state owned elsewhere. */
     fun syncState() {
@@ -75,20 +98,33 @@ class TrackpadPanel(context: Context, private val controller: MouseController) :
 
     // ------------------------------------------------------------- gestures
 
+    override fun onTripleTap() {
+        if (mode == PadMode.BUBBLE) setActive(!active)
+    }
+
     override fun onPointerMove(dx: Float, dy: Float) {
+        if (!active) return
         val gain = gainFor(dx, dy)
         controller.moveCursorBy(dx * gain, dy * gain)
         // In bubble mode the puck itself follows the finger, like a stick you keep stroking.
         if (mode == PadMode.BUBBLE) controller.movePadBy(dx, dy)
     }
 
-    override fun onTap() = controller.clickAtCursor()
+    override fun onTap() {
+        if (active) controller.clickAtCursor()
+    }
 
-    override fun onHold() = controller.longClickAtCursor()
+    override fun onHold() {
+        if (active) controller.longClickAtCursor()
+    }
 
-    override fun onDragBegin(withHold: Boolean) = controller.beginDrag(withHold)
+    override fun onDragBegin(withHold: Boolean) {
+        if (active) controller.beginDrag(withHold)
+    }
 
-    override fun onDragEnd() = controller.endDrag()
+    override fun onDragEnd() {
+        if (active) controller.endDrag()
+    }
 
     override fun onTouchStart() {
         pad.isPressed = true
@@ -98,7 +134,7 @@ class TrackpadPanel(context: Context, private val controller: MouseController) :
     override fun onTouchEnd() {
         pad.isPressed = false
         collapsedPuck.isPressed = false
-        if (mode == PadMode.BUBBLE) controller.onPadReleased()
+        if (mode == PadMode.BUBBLE && active) controller.onPadReleased()
     }
 
     /**

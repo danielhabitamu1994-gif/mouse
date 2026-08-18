@@ -12,6 +12,7 @@ import android.content.pm.ServiceInfo
 import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.graphics.Point
+import android.graphics.Rect
 import android.graphics.PointF
 import android.os.Build
 import android.os.Handler
@@ -21,6 +22,8 @@ import android.provider.Settings
 import android.util.Log
 import android.view.Gravity
 import android.view.View
+import android.view.ViewTreeObserver
+import android.view.WindowInsets
 import android.view.WindowManager
 import android.view.animation.DecelerateInterpolator
 import android.widget.Toast
@@ -64,6 +67,10 @@ class OverlayService : Service(), MouseController {
     private var placingBubble = false
     private var springBack: ValueAnimator? = null
     private var lastMode = PadMode.TRACKPAD
+    private var controlActive = true
+
+    private var probeView: View? = null
+    private var keyboardHeight = 0
 
     private val restoreBlocking = Runnable { restoreTouchBlocking() }
 
@@ -112,6 +119,7 @@ class OverlayService : Service(), MouseController {
             refreshScreenMetrics()
             applyBlockerState()
             moveCursorBy(0f, 0f)
+            measureKeyboard()
             clampPad()
         }, ROTATION_SETTLE_MS)
     }
@@ -143,6 +151,7 @@ class OverlayService : Service(), MouseController {
         addBlocker()
         addCursor()
         addPad()
+        addKeyboardProbe()
 
         overlaysAdded = true
         lastMode = settings.padMode
@@ -168,9 +177,13 @@ class OverlayService : Service(), MouseController {
     }
 
     private fun addCursor() {
-        val size = cursorSizePx()
+        val height = cursorSizePx()
         val view = CursorView(this)
-        val params = overlayParams(width = size, height = size, touchable = false)
+        val params = overlayParams(
+            width = CursorView.widthFor(height),
+            height = height,
+            touchable = false
+        )
         cursorView = view
         cursorParams = params
         windowManager.addView(view, params)
@@ -190,6 +203,12 @@ class OverlayService : Service(), MouseController {
     }
 
     private fun removeOverlays() {
+        probeView?.let {
+            it.viewTreeObserver.removeOnGlobalLayoutListener(keyboardWatcher)
+            safeRemove(it)
+        }
+        probeView = null
+        trackpad?.release()
         trackpad?.root?.let { safeRemove(it) }
         cursorView?.let { safeRemove(it) }
         blockerView?.let { safeRemove(it) }
@@ -200,6 +219,56 @@ class OverlayService : Service(), MouseController {
         cursorParams = null
         blockerParams = null
         overlaysAdded = false
+    }
+
+    /**
+     * A one pixel window that exists only to be measured. Unlike the others it is laid out inside
+     * the system's insets, so when the keyboard opens this window shrinks, which is how the
+     * service finds out the keyboard is there and how tall it is.
+     */
+    private fun addKeyboardProbe() {
+        val view = View(this)
+        val params = WindowManager.LayoutParams(
+            1,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            overlayType,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+            PixelFormat.TRANSPARENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            // Deprecated for activities, which have insets APIs instead, but still the only way
+            // to ask the window manager to resize a raw window around the keyboard.
+            @Suppress("DEPRECATION")
+            softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+        }
+        probeView = view
+        windowManager.addView(view, params)
+        view.viewTreeObserver.addOnGlobalLayoutListener(keyboardWatcher)
+    }
+
+    private val keyboardWatcher = ViewTreeObserver.OnGlobalLayoutListener { measureKeyboard() }
+
+    private fun measureKeyboard() {
+        val view = probeView ?: return
+
+        var height = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            view.rootWindowInsets?.getInsets(WindowInsets.Type.ime())?.bottom ?: 0
+        } else {
+            0
+        }
+        if (height == 0) {
+            // Older releases, and any device that does not report the insets to an overlay: work
+            // it out from how much of the display the window can still see.
+            val visible = Rect()
+            view.getWindowVisibleDisplayFrame(visible)
+            val covered = screenHeight - visible.bottom
+            if (covered > screenHeight * KEYBOARD_MIN_FRACTION) height = covered
+        }
+
+        if (height == keyboardHeight) return
+        keyboardHeight = height
+        springPadHome()
     }
 
     private fun overlayParams(width: Int, height: Int, touchable: Boolean): WindowManager.LayoutParams {
@@ -240,22 +309,31 @@ class OverlayService : Service(), MouseController {
     private fun applyOpacity(padTransparent: Boolean = false) {
         cursorParams?.let { params ->
             // The cursor sits exactly on the point being tapped, so it always has to step aside.
-            params.alpha = if (injecting) 0f else settings.overlayOpacity
+            params.alpha = if (injecting) 0f else settings.cursorOpacity
             cursorView?.let { safeUpdate(it, params) }
         }
         padParams?.let { params ->
-            params.alpha = if (padTransparent) 0f else settings.overlayOpacity
+            params.alpha = when {
+                padTransparent -> 0f
+                !controlActive -> Prefs.DIMMED_OPACITY
+                else -> settings.controlOpacity
+            }
             trackpad?.root?.let { safeUpdate(it, params) }
         }
     }
 
+    override fun onControlActiveChanged(active: Boolean) {
+        controlActive = active
+        applyOpacity()
+    }
+
     private fun applyCursorSize() {
-        val view = cursorView ?: return
+        cursorView ?: return
         val params = cursorParams ?: return
-        val size = cursorSizePx()
-        if (params.width == size) return
-        params.width = size
-        params.height = size
+        val height = cursorSizePx()
+        if (params.height == height) return
+        params.height = height
+        params.width = CursorView.widthFor(height)
         updateCursorWindow()
     }
 
@@ -361,22 +439,34 @@ class OverlayService : Service(), MouseController {
     private fun positionPadForMode() {
         val params = padParams ?: return
         val (width, height) = measuredPadSize()
-        val margin = dpInt(PAD_MARGIN_DP)
-
-        val stored = if (settings.padMode == PadMode.BUBBLE) {
-            settings.bubbleHomeX to settings.bubbleHomeY
-        } else {
-            settings.panelX to settings.panelY
-        }
-
-        if (stored.first == Prefs.UNSET || stored.second == Prefs.UNSET) {
-            params.x = screenWidth - width - margin
-            params.y = (screenHeight * DEFAULT_PAD_HEIGHT_FRACTION).toInt() - height / 2
-        } else {
-            params.x = stored.first
-            params.y = stored.second
-        }
+        val (x, y) = homePosition(width, height)
+        params.x = x
+        params.y = y
         clampPad(width, height)
+    }
+
+    /**
+     * Where the control belongs right now: the spot the user left it, pulled up above the
+     * keyboard while one is open so it never ends up behind it.
+     */
+    private fun homePosition(
+        width: Int = padSize().first,
+        height: Int = padSize().second
+    ): Pair<Int, Int> {
+        val margin = dpInt(PAD_MARGIN_DP)
+        val bubble = settings.padMode == PadMode.BUBBLE
+        val storedX = if (bubble) settings.bubbleHomeX else settings.panelX
+        val storedY = if (bubble) settings.bubbleHomeY else settings.panelY
+
+        val x = if (storedX == Prefs.UNSET) screenWidth - width - margin else storedX
+        val y = if (storedY == Prefs.UNSET) {
+            (screenHeight * DEFAULT_PAD_HEIGHT_FRACTION).toInt() - height / 2
+        } else {
+            storedY
+        }
+
+        val lowest = (screenHeight - keyboardHeight - height - margin).coerceAtLeast(0)
+        return x.coerceIn(0, (screenWidth - width).coerceAtLeast(0)) to y.coerceIn(0, lowest)
     }
 
     private fun measuredPadSize(): Pair<Int, Int> {
@@ -435,16 +525,13 @@ class OverlayService : Service(), MouseController {
 
     /**
      * The bubble always returns to its home spot; the cursor stays where the stroke left it, so
-     * long journeys can be made with several strokes.
+     * long journeys can be made with several strokes. Also used to get out of the keyboard's way
+     * and to come back once it is gone.
      */
     private fun springPadHome() {
         val params = padParams ?: return
         val root = trackpad?.root ?: return
-        val (width, height) = padSize()
-        val homeX = settings.bubbleHomeX.takeIf { it != Prefs.UNSET }
-            ?: (screenWidth - width - dpInt(PAD_MARGIN_DP))
-        val homeY = settings.bubbleHomeY.takeIf { it != Prefs.UNSET }
-            ?: ((screenHeight * DEFAULT_PAD_HEIGHT_FRACTION).toInt() - height / 2)
+        val (homeX, homeY) = homePosition()
 
         val fromX = params.x
         val fromY = params.y
@@ -502,9 +589,9 @@ class OverlayService : Service(), MouseController {
     private fun updateCursorWindow() {
         val view = cursorView ?: return
         val params = cursorParams ?: return
-        val size = cursorSizePx()
-        params.x = (cursorX - CursorView.hotspotX(size)).toInt()
-        params.y = (cursorY - CursorView.hotspotY(size)).toInt()
+        val height = cursorSizePx()
+        params.x = (cursorX - CursorView.hotspotX(height)).toInt()
+        params.y = (cursorY - CursorView.hotspotY(height)).toInt()
         safeUpdate(view, params)
     }
 
@@ -709,6 +796,9 @@ class OverlayService : Service(), MouseController {
         private const val INJECTION_SETTLE_MS = 80L
         private const val PASSTHROUGH_TAIL_MS = 60L
         private const val ROTATION_SETTLE_MS = 300L
+
+        /** Anything shorter than this much of the screen is a navigation bar, not a keyboard. */
+        private const val KEYBOARD_MIN_FRACTION = 0.15f
         private const val SPRING_BACK_MS = 180L
 
         fun start(context: Context) = send(context, ACTION_START)
