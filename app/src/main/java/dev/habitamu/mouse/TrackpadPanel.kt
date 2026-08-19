@@ -57,7 +57,8 @@ class TrackpadPanel(context: Context, private val controller: MouseController) :
 
     fun applyMode(newMode: PadMode) {
         mode = newMode
-        // Only the bubble has the triple tap, and only it pays for it in click latency.
+        // Waiting for a third tap costs the click a double-tap timeout, so only the bubble pays
+        // it - the panel reaches the shade with its own button instead.
         detector.waitForMoreTaps = newMode == PadMode.BUBBLE
         if (newMode == PadMode.BUBBLE) {
             setCollapsed(true)
@@ -81,7 +82,7 @@ class TrackpadPanel(context: Context, private val controller: MouseController) :
             if (controller.isBlockerEnabled()) R.string.pad_blocker_on else R.string.pad_blocker_off
         )
         blockerButton.isSelected = controller.isBlockerEnabled()
-        padHint.setText(R.string.pad_hint)
+        padHint.setText(if (mode == PadMode.BUBBLE) R.string.pad_hint_bubble else R.string.pad_hint)
         collapsedPuck.isActivated = controller.isPlacingBubble()
     }
 
@@ -102,7 +103,9 @@ class TrackpadPanel(context: Context, private val controller: MouseController) :
     // ------------------------------------------------------------- gestures
 
     override fun onTripleTap() {
-        if (mode == PadMode.BUBBLE) controller.setControlActive(false)
+        // The shade is at the top of the screen, which is the part that does not respond; this is
+        // the way to reach it, and the notification is also where the bubble's off switch lives.
+        controller.globalAction(AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS)
     }
 
     override fun onPointerMove(dx: Float, dy: Float) {
@@ -250,6 +253,9 @@ class TrackpadPanel(context: Context, private val controller: MouseController) :
         }
         root.findViewById<View>(R.id.btn_recents).setOnClickListener {
             controller.globalAction(AccessibilityService.GLOBAL_ACTION_RECENTS)
+        }
+        root.findViewById<View>(R.id.btn_shade).setOnClickListener {
+            controller.globalAction(AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS)
         }
 
         updateClock()

@@ -470,7 +470,10 @@ class OverlayService : Service(), MouseController {
             storedY
         }
 
-        val lowest = (screenHeight - keyboardHeight - height - margin).coerceAtLeast(0)
+        // Clear of the keyboard and of the row above it: sitting right on the keyboard's edge
+        // covers the send button of whatever is being typed into.
+        val clearance = if (keyboardHeight > 0) dpInt(KEYBOARD_CLEARANCE_DP) else 0
+        val lowest = (screenHeight - keyboardHeight - clearance - height - margin).coerceAtLeast(0)
         return x.coerceIn(0, (screenWidth - width).coerceAtLeast(0)) to y.coerceIn(0, lowest)
     }
 
@@ -818,6 +821,9 @@ class OverlayService : Service(), MouseController {
 
         private const val CURSOR_BASE_DP = 56f
         private const val PAD_MARGIN_DP = 10f
+
+        /** Room left above an open keyboard for the text field and its send button. */
+        private const val KEYBOARD_CLEARANCE_DP = 72f
 
         /** The blocker is invisible outside the settings screen; this is only for touch policy. */
         private const val BLOCKER_WINDOW_ALPHA = 0.5f
