@@ -41,7 +41,14 @@ class OverlayService : Service(), MouseController {
 
     override val settings: Prefs by lazy { Prefs(this) }
 
+    /**
+     * The window manager the overlays are currently attached through. An accessibility service
+     * gets to place windows the rest of the app cannot, so its own is preferred; see
+     * [chooseWindowHost].
+     */
     private lateinit var windowManager: WindowManager
+    private var overlayWindowType = 0
+    private var usingAccessibilityWindows = false
     private val handler = Handler(Looper.getMainLooper())
 
     private var blockerView: BlockerView? = null
@@ -75,11 +82,13 @@ class OverlayService : Service(), MouseController {
     private val systemReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == MouseAccessibilityService.ACTION_STATE_CHANGED) {
+                val connected = MouseAccessibilityService.instance != null
                 // Android's own volume shortcut switches accessibility services off, and the
                 // overlays carry on regardless, so say what happened rather than going quiet.
-                if (MouseAccessibilityService.instance == null && overlaysAdded) {
+                if (!connected && overlaysAdded) {
                     toast(getString(R.string.error_accessibility_lost))
                 }
+                if (overlaysAdded && connected != usingAccessibilityWindows) rebuildOverlays()
                 return
             }
             trackpad?.updateClock()
@@ -88,7 +97,7 @@ class OverlayService : Service(), MouseController {
 
     override fun onCreate() {
         super.onCreate()
-        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        chooseWindowHost(preferAccessibility = false)
         createNotificationChannel()
         MouseAccessibilityService.keyboardListener = { top -> onKeyboardTopChanged(top) }
         MouseAccessibilityService.shortcutListener = { setControlActive(!controlActive) }
@@ -177,12 +186,23 @@ class OverlayService : Service(), MouseController {
         if (overlaysAdded) return true
 
         refreshScreenMetrics()
-        cursorX = screenWidth / 2f
-        cursorY = screenHeight * INITIAL_CURSOR_HEIGHT_FRACTION
+        if (cursorX == 0f && cursorY == 0f) {
+            cursorX = screenWidth / 2f
+            cursorY = screenHeight * INITIAL_CURSOR_HEIGHT_FRACTION
+        }
 
-        addBlocker()
-        addCursor()
-        addPad()
+        chooseWindowHost(preferAccessibility = true)
+        if (!tryAddWindows() && usingAccessibilityWindows) {
+            // Some builds refuse accessibility windows to anything but the system; take the
+            // ordinary overlay rather than leaving the user with nothing.
+            Log.w(TAG, "Accessibility windows refused; falling back to an app overlay")
+            detachWindows()
+            chooseWindowHost(preferAccessibility = false)
+            if (!tryAddWindows()) {
+                stopSelf()
+                return false
+            }
+        }
 
         overlaysAdded = true
         lastMode = settings.padMode
@@ -197,6 +217,16 @@ class OverlayService : Service(), MouseController {
         positionPadForMode()
         wakeCursor()
         return true
+    }
+
+    private fun tryAddWindows(): Boolean = try {
+        addBlocker()
+        addCursor()
+        addPad()
+        true
+    } catch (e: RuntimeException) {
+        Log.w(TAG, "Could not add the overlay windows", e)
+        false
     }
 
     private fun addBlocker() {
@@ -242,6 +272,11 @@ class OverlayService : Service(), MouseController {
     }
 
     private fun removeOverlays() {
+        detachWindows()
+        overlaysAdded = false
+    }
+
+    private fun detachWindows() {
         trackpad?.release()
         trackpad?.root?.let { safeRemove(it) }
         cursorView?.let { safeRemove(it) }
@@ -252,7 +287,24 @@ class OverlayService : Service(), MouseController {
         padParams = null
         cursorParams = null
         blockerParams = null
+    }
+
+    /**
+     * Takes the windows down and puts them back up through whichever host is available now. The
+     * accessibility service coming or going changes what kind of window can be used, and the kind
+     * cannot be changed on a window that is already up.
+     */
+    private fun rebuildOverlays() {
+        val padX = padParams?.x
+        val padY = padParams?.y
+        detachWindows()
         overlaysAdded = false
+        if (!addOverlays()) return
+        if (padX != null && padY != null) {
+            padParams?.x = padX
+            padParams?.y = padY
+            clampPad()
+        }
     }
 
     private fun overlayParams(width: Int, height: Int, touchable: Boolean): WindowManager.LayoutParams {
@@ -267,12 +319,39 @@ class OverlayService : Service(), MouseController {
     }
 
     private val overlayType: Int
+        get() = overlayWindowType
+
+    private val appOverlayType: Int
         get() = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         } else {
             @Suppress("DEPRECATION")
             WindowManager.LayoutParams.TYPE_PHONE
         }
+
+    /**
+     * Picks who the overlays hang off.
+     *
+     * An ordinary app overlay sits below the notification shade, and Android hides it outright on
+     * screens it considers sensitive - most of Settings, and every permission dialog. That is
+     * exactly where the blocker went quiet and the damaged area started registering touches
+     * again. A window belonging to an accessibility service is trusted: it stays up over the
+     * shade and over Settings, which is what this app needs to be useful at all.
+     *
+     * The plain app overlay stays as the fallback for when the accessibility service is off.
+     */
+    private fun chooseWindowHost(preferAccessibility: Boolean) {
+        val service = if (preferAccessibility) MouseAccessibilityService.instance else null
+        if (service != null) {
+            windowManager = service.getSystemService(WINDOW_SERVICE) as WindowManager
+            overlayWindowType = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
+            usingAccessibilityWindows = true
+        } else {
+            windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+            overlayWindowType = appOverlayType
+            usingAccessibilityWindows = false
+        }
+    }
 
     private fun onKeyboardTopChanged(top: Int) {
         val height = if (top == MouseAccessibilityService.NO_KEYBOARD) {
@@ -426,7 +505,9 @@ class OverlayService : Service(), MouseController {
     private fun safeUpdate(view: View, params: WindowManager.LayoutParams) {
         try {
             if (view.isAttachedToWindow) windowManager.updateViewLayout(view, params)
-        } catch (e: IllegalArgumentException) {
+        } catch (e: RuntimeException) {
+            // The host can be pulled out from under a window - an accessibility service being
+            // switched off takes its windows with it - and the rebuild that follows sorts it out.
             Log.w(TAG, "Window update skipped", e)
         }
     }
@@ -434,8 +515,8 @@ class OverlayService : Service(), MouseController {
     private fun safeRemove(view: View) {
         try {
             windowManager.removeView(view)
-        } catch (e: IllegalArgumentException) {
-            Log.w(TAG, "Window already removed", e)
+        } catch (e: RuntimeException) {
+            Log.w(TAG, "Window already gone", e)
         }
     }
 

@@ -119,10 +119,22 @@ This is a sideloading key for a personal build, not a Play Store upload key, and
 repository can sign with it. Swap it for a key held in a GitHub secret before distributing the app
 to anyone else.
 
+### Which kind of window
+
+The overlays are added through the accessibility service, as `TYPE_ACCESSIBILITY_OVERLAY`. An
+ordinary `TYPE_APPLICATION_OVERLAY` sits below the notification shade, and Android hides it
+outright on screens it treats as sensitive - most of Settings, and every permission dialog - which
+is precisely where the blocker went quiet and the damaged area started registering touches again.
+An accessibility service's window is trusted and stays up in both places.
+
+The plain app overlay remains as the fallback: it is what gets used while the accessibility
+service is off, and if a device refuses accessibility windows. Switching the service on or off
+rebuilds the windows, since a window's type cannot be changed once it is up.
+
 ## Limitations
 
-- `TYPE_APPLICATION_OVERLAY` windows cannot cover system UI such as the status bar shade, the
-  lock screen, or permission dialogs, so ghost touches there are not blocked.
+- With the accessibility service off, the overlays fall back to an app overlay, which the shade
+  covers and which Settings hides.
 - Some apps mark their windows secure or filter obscured touches; the injected taps may be
   refused by those.
 - A gesture is dispatched only after you lift your finger, so this is a point-and-click model,
