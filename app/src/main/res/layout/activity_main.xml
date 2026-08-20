@@ -1,0 +1,320 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:scrollbarStyle="outsideOverlay">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="16dp"
+        android:paddingTop="24dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="24dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/app_name"
+            android:textSize="30sp"
+            android:textStyle="bold" />
+
+        <TextView
+            style="@style/Hint"
+            android:layout_marginTop="4dp"
+            android:text="@string/intro" />
+
+        <!-- Setup -->
+        <LinearLayout style="@style/Card">
+
+            <TextView
+                style="@style/CardTitle"
+                android:text="@string/setup_heading" />
+
+            <LinearLayout style="@style/SettingRow">
+
+                <TextView
+                    style="@style/SettingLabel"
+                    android:text="@string/step_overlay" />
+
+                <TextView
+                    android:id="@+id/status_overlay"
+                    style="@style/SettingValue"
+                    android:text="@string/status_missing" />
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/btn_overlay_permission"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/action_grant_overlay" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="16dp"
+                android:background="#26808080" />
+
+            <LinearLayout style="@style/SettingRow">
+
+                <TextView
+                    style="@style/SettingLabel"
+                    android:text="@string/step_accessibility" />
+
+                <TextView
+                    android:id="@+id/status_accessibility"
+                    style="@style/SettingValue"
+                    android:text="@string/status_missing" />
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/btn_accessibility"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/action_open_accessibility" />
+
+            <LinearLayout
+                style="@style/SettingRow"
+                android:layout_marginTop="16dp">
+
+                <TextView
+                    style="@style/SettingLabel"
+                    android:text="@string/step_volume_shortcut" />
+
+                <TextView
+                    android:id="@+id/status_shortcut"
+                    style="@style/SettingValue"
+                    android:text="@string/status_unavailable" />
+            </LinearLayout>
+
+            <TextView
+                style="@style/Hint"
+                android:layout_marginTop="4dp"
+                android:text="@string/volume_shortcut_note" />
+        </LinearLayout>
+
+        <!-- Control -->
+        <LinearLayout style="@style/Card">
+
+            <TextView
+                style="@style/CardTitle"
+                android:text="@string/mode_heading" />
+
+            <RadioGroup
+                android:id="@+id/radio_mode"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <RadioButton
+                    android:id="@+id/radio_trackpad"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="6dp"
+                    android:paddingEnd="0dp"
+                    android:text="@string/mode_trackpad"
+                    android:textSize="15sp" />
+
+                <RadioButton
+                    android:id="@+id/radio_bubble"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="6dp"
+                    android:paddingEnd="0dp"
+                    android:text="@string/mode_bubble"
+                    android:textSize="15sp" />
+            </RadioGroup>
+
+            <TextView
+                style="@style/Hint"
+                android:layout_marginTop="8dp"
+                android:text="@string/mode_bubble_detail" />
+
+            <Button
+                android:id="@+id/btn_place_bubble"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/action_place_bubble" />
+        </LinearLayout>
+
+        <!-- Touch blocker -->
+        <LinearLayout style="@style/Card">
+
+            <TextView
+                style="@style/CardTitle"
+                android:text="@string/blocker_heading" />
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/switch_blocker"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/setting_blocker"
+                android:textSize="15sp" />
+
+            <LinearLayout
+                style="@style/SettingRow"
+                android:layout_marginTop="16dp">
+
+                <TextView
+                    style="@style/SettingLabel"
+                    android:text="@string/setting_coverage" />
+
+                <TextView
+                    android:id="@+id/value_coverage"
+                    style="@style/SettingValue" />
+            </LinearLayout>
+
+            <SeekBar
+                android:id="@+id/seek_coverage"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
+            <TextView
+                style="@style/Hint"
+                android:layout_marginTop="4dp"
+                android:text="@string/blocker_preview_note" />
+        </LinearLayout>
+
+        <!-- Pointer -->
+        <LinearLayout style="@style/Card">
+
+            <TextView
+                style="@style/CardTitle"
+                android:text="@string/pointer_heading" />
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/switch_tap_after_slide"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                android:text="@string/setting_tap_after_slide"
+                android:textSize="15sp" />
+
+            <LinearLayout style="@style/SettingRow">
+
+                <TextView
+                    style="@style/SettingLabel"
+                    android:text="@string/setting_sensitivity" />
+
+                <TextView
+                    android:id="@+id/value_sensitivity"
+                    style="@style/SettingValue" />
+            </LinearLayout>
+
+            <SeekBar
+                android:id="@+id/seek_sensitivity"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
+            <LinearLayout
+                style="@style/SettingRow"
+                android:layout_marginTop="12dp">
+
+                <TextView
+                    style="@style/SettingLabel"
+                    android:text="@string/setting_cursor_size" />
+
+                <TextView
+                    android:id="@+id/value_cursor_size"
+                    style="@style/SettingValue" />
+            </LinearLayout>
+
+            <SeekBar
+                android:id="@+id/seek_cursor_size"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
+            <LinearLayout
+                style="@style/SettingRow"
+                android:layout_marginTop="12dp">
+
+                <TextView
+                    style="@style/SettingLabel"
+                    android:text="@string/setting_cursor_hide" />
+
+                <TextView
+                    android:id="@+id/value_cursor_hide"
+                    style="@style/SettingValue" />
+            </LinearLayout>
+
+            <SeekBar
+                android:id="@+id/seek_cursor_hide"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
+            <LinearLayout
+                style="@style/SettingRow"
+                android:layout_marginTop="12dp">
+
+                <TextView
+                    style="@style/SettingLabel"
+                    android:text="@string/setting_cursor_opacity" />
+
+                <TextView
+                    android:id="@+id/value_cursor_opacity"
+                    style="@style/SettingValue" />
+            </LinearLayout>
+
+            <SeekBar
+                android:id="@+id/seek_cursor_opacity"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
+            <LinearLayout
+                style="@style/SettingRow"
+                android:layout_marginTop="12dp">
+
+                <TextView
+                    style="@style/SettingLabel"
+                    android:text="@string/setting_control_opacity" />
+
+                <TextView
+                    android:id="@+id/value_control_opacity"
+                    style="@style/SettingValue" />
+            </LinearLayout>
+
+            <SeekBar
+                android:id="@+id/seek_control_opacity"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+        <!-- Gestures -->
+        <LinearLayout style="@style/Card">
+
+            <TextView
+                style="@style/CardTitle"
+                android:text="@string/gestures_heading" />
+
+            <TextView
+                style="@style/Hint"
+                android:text="@string/usage_help" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/status_service"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:gravity="center"
+            android:text="@string/status_service_stopped"
+            android:textSize="13sp"
+            android:alpha="0.7" />
+
+        <Button
+            android:id="@+id/btn_toggle_service"
+            android:layout_width="match_parent"
+            android:layout_height="60dp"
+            android:layout_marginTop="8dp"
+            android:text="@string/action_start"
+            android:textSize="17sp"
+            android:textStyle="bold" />
+
+    </LinearLayout>
+</ScrollView>

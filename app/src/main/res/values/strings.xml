@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Mouse</string>
+
+    <string name="intro">Blocks touches from a damaged part of the screen and gives you a
+        trackpad and an on-screen cursor to drive the phone with instead.</string>
+
+    <string name="setup_heading">Setup</string>
+    <string name="step_overlay">Draw over other apps</string>
+    <string name="step_accessibility">Accessibility service</string>
+
+    <string name="mode_heading">Control</string>
+    <string name="mode_trackpad">Trackpad panel</string>
+    <string name="mode_bubble">Bubble only</string>
+    <string name="mode_bubble_detail">The bubble follows your finger and the cursor moves with it.
+        Let go and the bubble slides back to its spot, while the cursor stays where you left it, so
+        you can cross the screen in several strokes. The bubble shows the time, and triple tapping
+        it pulls down the notification shade - which is where the button to hide the bubble lives.
+        It lifts itself clear of the keyboard while one is open.</string>
+    <string name="action_place_bubble">Choose where the bubble sits</string>
+
+    <string name="blocker_heading">Touch blocker</string>
+    <string name="setting_blocker">Block touches in the damaged area</string>
+    <string name="setting_coverage">Blocked area</string>
+    <string name="blocker_preview_note">The outline and the label are drawn only while this screen
+        is open, so nothing marks the screen while you use the phone. Touches are blocked either
+        way.</string>
+
+    <string name="pointer_heading">Pointer</string>
+    <string name="setting_sensitivity">Cursor speed</string>
+    <string name="setting_cursor_size">Cursor size</string>
+    <string name="setting_tap_after_slide">Click where the cursor stops when I let go</string>
+    <string name="setting_cursor_hide">Hide the cursor after</string>
+    <string name="setting_cursor_opacity">Cursor opacity</string>
+    <string name="setting_control_opacity">Trackpad / bubble opacity</string>
+
+    <string name="gestures_heading">Gestures</string>
+
+    <string name="status_granted">On</string>
+    <string name="status_missing">Off</string>
+    <string name="status_working">Working</string>
+    <string name="status_untested">Press a volume key</string>
+    <string name="status_unavailable">Not working</string>
+    <string name="step_volume_shortcut">Volume shortcut</string>
+    <string name="volume_shortcut_note">Press one volume key and then the other, quickly - not both
+        together. Holding both together is Android\'s own shortcut and it switches the Mouse
+        accessibility service off, so turn that off under Settings &#8250; Accessibility &#8250;
+        Mouse &#8250; Shortcut. Reopen this screen after pressing a volume key to see whether the
+        keys reach Mouse. The notification always has a button to hide and show the bubble.</string>
+    <string name="status_service_running">Overlays are running</string>
+    <string name="status_service_stopped">Overlays are stopped</string>
+
+    <string name="action_grant_overlay">Allow drawing over other apps</string>
+    <string name="action_open_accessibility">Open accessibility settings</string>
+    <string name="action_start">Start</string>
+    <string name="action_stop">Stop</string>
+    <string name="action_control_hide">Hide bubble</string>
+    <string name="action_control_show">Show bubble</string>
+    <string name="action_blocker_on">Block touches</string>
+    <string name="action_blocker_off">Unblock touches</string>
+
+    <string name="value_percent">Top %1$d%% of the screen</string>
+    <string name="value_multiplier">%1$.1f×</string>
+    <string name="value_percentage">%1$d%%</string>
+    <string name="value_seconds">%1$d s</string>
+    <string name="value_never">Never</string>
+
+    <string name="usage_help">Slide to move the cursor, and let go to click where it stopped — or
+        turn that off above.\nTap
+        without sliding to click where the cursor is.\nDouble tap and release to long press.\nDouble
+        tap and, without lifting, slide to drag: slide straight away to scroll, or rest a moment
+        first to pick something up.\nTriple tap the bubble to pull down the notification shade.\nOne
+        volume key then the other, quickly, hides the bubble or brings it back.</string>
+
+    <string name="blocker_watermark">TOUCH BLOCKED</string>
+
+    <string name="pad_title">Mouse</string>
+    <string name="pad_puck">🖱</string>
+    <string name="pad_collapse">−</string>
+    <string name="pad_collapse_description">Shrink the trackpad</string>
+    <string name="pad_blocker_on">Blocking</string>
+    <string name="pad_blocker_off">Off</string>
+    <string name="pad_back">Back</string>
+    <string name="pad_home">Home</string>
+    <string name="pad_recents">Apps</string>
+    <string name="pad_shade">Shade</string>
+    <string name="pad_hint">Slide to move · tap to click · double tap to hold</string>
+    <string name="pad_hint_bubble">Triple tap opens the notification shade</string>
+
+    <string name="hint_place_bubble">Drag the bubble where you want it and let go.</string>
+    <string name="hint_control_off">Hidden. Volume up + down together brings it back.</string>
+    <string name="hint_control_on">Bubble on.</string>
+    <string name="hint_bubble_placed">The bubble will come back here from now on.</string>
+
+    <string name="error_overlay_permission">Mouse needs permission to draw over other apps.</string>
+    <string name="error_accessibility_off">Turn on the Mouse accessibility service first.</string>
+    <string name="error_gesture_failed">That tap could not be delivered.</string>
+    <string name="error_accessibility_lost">The Mouse accessibility service was switched off, so
+        the cursor cannot tap. Turn it back on in Settings.</string>
+
+    <string name="notification_channel_name">Mouse overlays</string>
+    <string name="notification_channel_description">Shown while the cursor and touch blocker are
+        active.</string>
+    <string name="notification_title">Mouse is running</string>
+    <string name="notification_text_blocking">Touches in the damaged area are blocked.</string>
+    <string name="notification_text_idle">Touch blocking is off.</string>
+
+    <string name="accessibility_service_label">Mouse</string>
+    <string name="accessibility_service_description">Lets Mouse tap, long press and drag where you
+        put the on-screen cursor, and use Back, Home and Recents from the floating trackpad. It
+        also looks at where the keyboard is, so the trackpad can move out of its way, and listens
+        for volume up and down together as a shortcut. Mouse does not read the text or contents of
+        your screen.</string>
+</resources>
