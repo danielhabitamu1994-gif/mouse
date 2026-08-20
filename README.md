@@ -39,7 +39,7 @@ and nothing else - no screen text is ever fetched.
 
 | Gesture | Result |
 | --- | --- |
-| Slide | The cursor moves. Lifting your finger does **not** tap. |
+| Slide | The cursor moves, and letting go clicks where it stopped. Switchable off in the app, in which case a slide only repositions the cursor. |
 | Tap without sliding | Click where the cursor is. |
 | Double tap, release | Long press at the cursor. |
 | Double tap, then slide without lifting | Drag from the cursor. Slide straight away for a swipe (scrolling); rest a moment first and the drag presses and holds before moving, which is what picking an icon up needs. |

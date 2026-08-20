@@ -76,8 +76,9 @@ class TrackpadPanel(context: Context, private val controller: MouseController) :
         puckClock.text = clockFormat.format(Date())
     }
 
-    /** Refresh every label that mirrors state owned elsewhere. */
+    /** Refresh every label and option that mirrors state owned elsewhere. */
     fun syncState() {
+        detector.tapAfterSlide = controller.settings.tapAfterSlide
         blockerButton.setText(
             if (controller.isBlockerEnabled()) R.string.pad_blocker_on else R.string.pad_blocker_off
         )

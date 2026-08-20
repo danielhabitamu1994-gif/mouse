@@ -11,7 +11,7 @@ import kotlin.math.hypot
  * Turns finger movement on the pad or on the bubble into pointer gestures, the way a laptop
  * trackpad behaves:
  *
- * - slide, then lift: the cursor moves and nothing is clicked;
+ * - slide, then lift: the cursor moves, and clicks where it stopped if [tapAfterSlide] is on;
  * - tap without sliding: a click where the cursor is;
  * - double tap: the second tap is a press, so releasing it long-presses at the cursor;
  * - double tap where the second tap slides instead of releasing: a drag from the cursor. Slide
@@ -59,6 +59,9 @@ class PointerGestureDetector(context: Context, private val listener: Listener) {
 
     /** Hold the click and the long press back long enough to notice a third tap. */
     var waitForMoreTaps: Boolean = false
+
+    /** Whether the end of a slide clicks where the cursor stopped. */
+    var tapAfterSlide: Boolean = false
 
     private var state = State.IDLE
     private var lastX = 0f
@@ -117,8 +120,10 @@ class PointerGestureDetector(context: Context, private val listener: Listener) {
                         countTap(event.eventTime, 1)
                         fire(deferredTap) { listener.onTap() }
                     } else {
-                        // Only repositioned the cursor; a later touch starts fresh.
+                        // A slide is not a tap, so no third one can be on its way: if the click
+                        // is wanted here it goes out straight away, with no waiting.
                         forgetTaps()
+                        if (tapAfterSlide) listener.onTap()
                     }
 
                     State.SECOND_TAP -> {

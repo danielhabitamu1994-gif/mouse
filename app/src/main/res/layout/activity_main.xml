@@ -188,6 +188,14 @@
                 style="@style/CardTitle"
                 android:text="@string/pointer_heading" />
 
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/switch_tap_after_slide"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                android:text="@string/setting_tap_after_slide"
+                android:textSize="15sp" />
+
             <LinearLayout style="@style/SettingRow">
 
                 <TextView

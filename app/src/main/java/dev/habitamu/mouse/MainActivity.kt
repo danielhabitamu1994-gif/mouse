@@ -68,6 +68,11 @@ class MainActivity : AppCompatActivity() {
 
         binding.btnPlaceBubble.setOnClickListener { OverlayService.placeBubble(this) }
 
+        binding.switchTapAfterSlide.setOnCheckedChangeListener { _, checked ->
+            prefs.tapAfterSlide = checked
+            pushSettings()
+        }
+
         binding.switchBlocker.setOnCheckedChangeListener { _, checked ->
             prefs.blockerEnabled = checked
             pushSettings()
@@ -210,6 +215,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun loadSettingsIntoUi() {
         binding.switchBlocker.isChecked = prefs.blockerEnabled
+        binding.switchTapAfterSlide.isChecked = prefs.tapAfterSlide
         binding.radioMode.check(
             if (prefs.padMode == PadMode.BUBBLE) R.id.radio_bubble else R.id.radio_trackpad
         )

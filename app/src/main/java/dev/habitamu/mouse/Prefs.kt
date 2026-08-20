@@ -54,6 +54,11 @@ class Prefs(context: Context) {
             .putFloat(KEY_CURSOR_SCALE, value.coerceIn(MIN_CURSOR_SCALE, MAX_CURSOR_SCALE))
             .apply()
 
+    /** Whether letting go after a slide clicks where the cursor stopped. */
+    var tapAfterSlide: Boolean
+        get() = prefs.getBoolean(KEY_TAP_AFTER_SLIDE, true)
+        set(value) = prefs.edit().putBoolean(KEY_TAP_AFTER_SLIDE, value).apply()
+
     /** Seconds of stillness before the cursor hides itself. Zero keeps it on screen. */
     var cursorHideSeconds: Int
         get() = prefs.getInt(KEY_CURSOR_HIDE, DEFAULT_CURSOR_HIDE_SECONDS)
@@ -99,6 +104,7 @@ class Prefs(context: Context) {
         private const val KEY_BLOCKER_ENABLED = "blocker_enabled"
         private const val KEY_BLOCKER_FRACTION = "blocker_fraction"
         private const val KEY_SENSITIVITY = "sensitivity"
+        private const val KEY_TAP_AFTER_SLIDE = "tap_after_slide"
         private const val KEY_CURSOR_HIDE = "cursor_hide_seconds"
         private const val KEY_CURSOR_OPACITY = "cursor_opacity"
         private const val KEY_CONTROL_OPACITY = "control_opacity"

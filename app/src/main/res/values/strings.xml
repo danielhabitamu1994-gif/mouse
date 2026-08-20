@@ -29,6 +29,7 @@
     <string name="pointer_heading">Pointer</string>
     <string name="setting_sensitivity">Cursor speed</string>
     <string name="setting_cursor_size">Cursor size</string>
+    <string name="setting_tap_after_slide">Click where the cursor stops when I let go</string>
     <string name="setting_cursor_hide">Hide the cursor after</string>
     <string name="setting_cursor_opacity">Cursor opacity</string>
     <string name="setting_control_opacity">Trackpad / bubble opacity</string>
@@ -64,7 +65,8 @@
     <string name="value_seconds">%1$d s</string>
     <string name="value_never">Never</string>
 
-    <string name="usage_help">Slide to move the cursor — lifting your finger does not tap.\nTap
+    <string name="usage_help">Slide to move the cursor, and let go to click where it stopped — or
+        turn that off above.\nTap
         without sliding to click where the cursor is.\nDouble tap and release to long press.\nDouble
         tap and, without lifting, slide to drag: slide straight away to scroll, or rest a moment
         first to pick something up.\nTriple tap the bubble to pull down the notification shade.\nOne
